@@ -6,6 +6,7 @@
     <relationshipLabel>Movie Availabilities</relationshipLabel>
     <relationshipName>Movie_Availabilities</relationshipName>
     <required>true</required>
+    <deleteConstraint>Restrict</deleteConstraint>
     <trackHistory>false</trackHistory>
     <type>Lookup</type>
 </CustomField>

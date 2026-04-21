@@ -6,6 +6,7 @@
     <relationshipLabel>User Movie Interactions</relationshipLabel>
     <relationshipName>User_Movie_Interactions</relationshipName>
     <required>true</required>
+    <deleteConstraint>Restrict</deleteConstraint>
     <trackHistory>false</trackHistory>
     <type>Lookup</type>
 </CustomField>

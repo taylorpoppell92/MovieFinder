@@ -5,7 +5,6 @@
     <referenceTo>Movie__c</referenceTo>
     <relationshipLabel>Movie Availabilities</relationshipLabel>
     <relationshipName>Movie_Availabilities</relationshipName>
-    <required>true</required>
     <trackHistory>false</trackHistory>
     <type>MasterDetail</type>
     <writeRequiresMasterRead>false</writeRequiresMasterRead>

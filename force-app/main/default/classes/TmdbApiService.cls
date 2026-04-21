@@ -306,11 +306,11 @@ public with sharing class TmdbApiService {
      */
     public static List<String> getChangedMovieIds(Date startDate, Date endDate) {
         String start = formatDate(startDate);
-        String end   = formatDate(endDate);
+        String endDateString = formatDate(endDate);
 
         String url = buildUrl('/movie/changes')
             + '&start_date=' + start
-            + '&end_date='   + end;
+            + '&end_date='   + endDateString;
 
         HttpResponse res = makeCallout(url);
         Map<String, Object> root = (Map<String, Object>) JSON.deserializeUntyped(res.getBody());

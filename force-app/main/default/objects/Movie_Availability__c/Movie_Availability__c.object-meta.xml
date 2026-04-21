@@ -17,5 +17,5 @@
         <type>AutoNumber</type>
     </nameField>
     <pluralLabel>Movie Availabilities</pluralLabel>
-    <sharingModel>ReadWrite</sharingModel>
+    <sharingModel>ControlledByParent</sharingModel>
 </CustomObject>
