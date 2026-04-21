@@ -1,0 +1,13 @@
+.interaction-bar {
+    display: flex;
+    justify-content: space-around;
+    padding: 4px;
+    background: rgba(0,0,0,0.5);
+    min-height: 36px;
+    align-items: center;
+}
+
+.spinner-container {
+    height: 28px;
+    width: 100%;
+}

@@ -1,0 +1,64 @@
+<template>
+    <div class="slds-p-around_medium">
+        <h1 class="slds-text-heading_large slds-m-bottom_medium">My Streaming Services</h1>
+
+        <template if:true={isLoading}>
+            <div class="slds-is-relative slds-p-around_large">
+                <lightning-spinner alternative-text="Loading services..." size="medium"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:true={hasError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                <h2>Failed to load streaming services. Please refresh and try again.</h2>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:false={hasError}>
+                <div class="service-grid">
+                    <template for:each={mergedServices} for:item="service">
+                        <div key={service.serviceId} class="service-card slds-box slds-p-around_medium">
+                            <div class="service-header slds-m-bottom_small">
+                                <template if:true={service.logoUrl}>
+                                    <img
+                                        src={service.logoUrl}
+                                        alt={service.serviceName}
+                                        class="service-logo"
+                                    />
+                                </template>
+                                <template if:false={service.logoUrl}>
+                                    <div class="service-logo-fallback">
+                                        {service.initials}
+                                    </div>
+                                </template>
+                                <span class="slds-text-heading_small slds-m-left_small">{service.serviceName}</span>
+                            </div>
+
+                            <lightning-input
+                                type="toggle"
+                                label="Active subscription"
+                                checked={service.isSubscribed}
+                                data-service-id={service.serviceId}
+                                onchange={handleToggle}
+                                message-toggle-active="Subscribed"
+                                message-toggle-inactive="Not subscribed"
+                            ></lightning-input>
+
+                            <div class="slds-m-top_small">
+                                <lightning-button
+                                    label="Browse this service"
+                                    icon-name="utility:search"
+                                    data-service-id={service.serviceId}
+                                    onclick={handleBrowseService}
+                                    variant="neutral"
+                                ></lightning-button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

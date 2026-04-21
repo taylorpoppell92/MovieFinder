@@ -1,0 +1,38 @@
+<template>
+    <div class="interaction-bar">
+        <template if:true={isLoading}>
+            <div class="slds-is-relative spinner-container">
+                <lightning-spinner alternative-text="Saving..." size="small"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <lightning-button-icon
+                icon-name="utility:like"
+                alternative-text="Thumbs Up"
+                title="Like"
+                variant={thumbsUpVariant}
+                size="small"
+                onclick={handleThumbsUp}
+            ></lightning-button-icon>
+
+            <lightning-button-icon
+                icon-name="utility:dislike"
+                alternative-text="Thumbs Down"
+                title="Not interested"
+                variant={thumbsDownVariant}
+                size="small"
+                onclick={handleThumbsDown}
+            ></lightning-button-icon>
+
+            <lightning-button-icon
+                icon-name="utility:bookmark"
+                alternative-text="Add to Watchlist"
+                title="Add to Watchlist"
+                variant={watchlistVariant}
+                size="small"
+                onclick={handleWatchlist}
+            ></lightning-button-icon>
+        </template>
+    </div>
+</template>

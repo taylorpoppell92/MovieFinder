@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Movie__c</fullName>
+    <label>Movie</label>
+    <referenceTo>Movie__c</referenceTo>
+    <relationshipLabel>Movie Availabilities</relationshipLabel>
+    <relationshipName>Movie_Availabilities</relationshipName>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>MasterDetail</type>
+    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+</CustomField>

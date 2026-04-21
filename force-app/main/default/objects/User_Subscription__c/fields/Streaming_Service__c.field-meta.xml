@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Streaming_Service__c</fullName>
+    <label>Streaming Service</label>
+    <referenceTo>Streaming_Service__c</referenceTo>
+    <relationshipLabel>User Subscriptions</relationshipLabel>
+    <relationshipName>User_Subscriptions</relationshipName>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Lookup</type>
+</CustomField>

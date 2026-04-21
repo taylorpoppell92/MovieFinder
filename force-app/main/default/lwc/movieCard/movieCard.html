@@ -1,0 +1,44 @@
+<template>
+    <div class="movie-card">
+        <!-- Content rating badge (top-left) -->
+        <template if:true={movie.contentRating}>
+            <span class="content-rating">{movie.contentRating}</span>
+        </template>
+
+        <!-- Aggregate rating badge (top-right) -->
+        <template if:true={movie.aggregateRating}>
+            <span class="rating-badge">{movie.aggregateRating}</span>
+        </template>
+
+        <!-- Poster image or fallback -->
+        <template if:false={showFallback}>
+            <img
+                class="movie-poster"
+                src={posterUrl}
+                alt={movie.title}
+                onerror={handleImageError}
+            />
+        </template>
+        <template if:true={showFallback}>
+            <div class="fallback-poster">
+                <span>{movie.title}</span>
+            </div>
+        </template>
+
+        <!-- Hover overlay -->
+        <div class="movie-overlay">
+            <p class="movie-title">{movie.title}</p>
+            <p class="movie-meta">{movie.releaseYear}</p>
+            <template if:true={overviewSnippet}>
+                <p class="movie-overview">{overviewSnippet}</p>
+            </template>
+        </div>
+
+        <!-- Interaction buttons -->
+        <c-interaction-buttons
+            movie-id={movie.movieId}
+            existing-interaction={movie.existingInteraction}
+            oninteractionrecorded={handleInteractionRecorded}
+        ></c-interaction-buttons>
+    </div>
+</template>

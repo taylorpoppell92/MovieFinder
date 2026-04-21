@@ -1,0 +1,6 @@
+.filter-bar {
+    background: #f3f3f3;
+    border-bottom: 1px solid #dddbda;
+    flex-wrap: wrap;
+    gap: 8px;
+}

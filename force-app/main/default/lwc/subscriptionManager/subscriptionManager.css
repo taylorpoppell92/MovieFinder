@@ -1,0 +1,36 @@
+.service-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.service-card {
+    background: #ffffff;
+    border-radius: 8px;
+}
+
+.service-header {
+    display: flex;
+    align-items: center;
+}
+
+.service-logo {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.service-logo-fallback {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #16325c;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    flex-shrink: 0;
+}

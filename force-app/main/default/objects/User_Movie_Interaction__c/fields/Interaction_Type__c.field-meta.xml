@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Interaction_Type__c</fullName>
+    <label>Interaction Type</label>
+    <required>true</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Thumbs_Up</fullName>
+                <default>false</default>
+                <label>Thumbs_Up</label>
+            </value>
+            <value>
+                <fullName>Thumbs_Down</fullName>
+                <default>false</default>
+                <label>Thumbs_Down</label>
+            </value>
+            <value>
+                <fullName>Swipe_Right</fullName>
+                <default>false</default>
+                <label>Swipe_Right</label>
+            </value>
+            <value>
+                <fullName>Swipe_Left</fullName>
+                <default>false</default>
+                <label>Swipe_Left</label>
+            </value>
+            <value>
+                <fullName>Watchlisted</fullName>
+                <default>false</default>
+                <label>Watchlisted</label>
+            </value>
+            <value>
+                <fullName>Watched</fullName>
+                <default>false</default>
+                <label>Watched</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

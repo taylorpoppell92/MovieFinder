@@ -1,0 +1,21 @@
+<template>
+    <div class="filter-bar slds-grid slds-grid_align-spread slds-grid_vertical-align-end slds-p-horizontal_medium slds-p-vertical_small">
+        <div class="slds-col slds-size_1-of-2 slds-medium-size_1-of-4">
+            <lightning-combobox
+                label="Filter by Service"
+                value={selectedService}
+                options={serviceOptions}
+                onchange={handleServiceChange}
+                placeholder="All Services"
+            ></lightning-combobox>
+        </div>
+        <div class="slds-col slds-shrink">
+            <lightning-button
+                label="Clear Filters"
+                variant="neutral"
+                icon-name="utility:clear"
+                onclick={handleClear}
+            ></lightning-button>
+        </div>
+    </div>
+</template>

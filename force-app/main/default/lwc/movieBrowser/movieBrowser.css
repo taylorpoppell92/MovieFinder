@@ -1,0 +1,14 @@
+.browser-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+}
+
+.empty-state {
+    flex: 1;
+    padding: 48px 24px;
+}
+
+.load-more-container {
+    padding: 16px;
+}

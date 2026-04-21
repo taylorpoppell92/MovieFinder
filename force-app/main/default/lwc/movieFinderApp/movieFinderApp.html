@@ -1,0 +1,15 @@
+<template>
+    <lightning-tabset>
+        <lightning-tab label="Browse Movies" value="browse">
+            <c-movie-browser
+                service-filter={serviceFilter}
+                oninteractionrecorded={handleInteractionRecorded}
+            ></c-movie-browser>
+        </lightning-tab>
+        <lightning-tab label="My Services" value="services">
+            <c-subscription-manager
+                onserviceselected={handleServiceSelected}
+            ></c-subscription-manager>
+        </lightning-tab>
+    </lightning-tabset>
+</template>

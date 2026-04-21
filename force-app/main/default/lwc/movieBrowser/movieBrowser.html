@@ -1,0 +1,53 @@
+<template>
+    <div class="browser-container">
+        <c-movie-filter-bar
+            subscriptions={subscriptions}
+            onfilterchange={handleFilterChange}
+        ></c-movie-filter-bar>
+
+        <template if:true={isLoading}>
+            <div class="slds-is-relative slds-p-around_large">
+                <lightning-spinner alternative-text="Loading movies..." size="large"></lightning-spinner>
+            </div>
+        </template>
+
+        <template if:true={hasError}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-around_medium" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                <h2>Failed to load movies. Please try again.</h2>
+            </div>
+        </template>
+
+        <template if:false={hasError}>
+            <template if:true={isEmpty}>
+                <div class="empty-state slds-align_absolute-center slds-p-around_xx-large">
+                    <div class="slds-text-align_center">
+                        <lightning-icon icon-name="utility:video" size="large" class="slds-m-bottom_medium"></lightning-icon>
+                        <p class="slds-text-heading_medium slds-m-top_medium">No movies found.</p>
+                        <p class="slds-text-body_regular slds-m-top_small">
+                            Try adjusting your filters or adding streaming services in &apos;My Services&apos;.
+                        </p>
+                    </div>
+                </div>
+            </template>
+
+            <template if:false={isEmpty}>
+                <c-movie-grid
+                    movies={movies}
+                    oninteractionrecorded={handleInteractionRecorded}
+                ></c-movie-grid>
+            </template>
+
+            <template if:true={hasMore}>
+                <div class="load-more-container slds-align_absolute-center slds-p-vertical_medium">
+                    <lightning-button
+                        label="Load More"
+                        variant="neutral"
+                        onclick={handleLoadMore}
+                        disabled={isLoading}
+                    ></lightning-button>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

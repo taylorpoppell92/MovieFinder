@@ -1,0 +1,14 @@
+<template>
+    <template if:true={hasMovies}>
+        <div class="movie-grid">
+            <template for:each={movies} for:item="movie">
+                <div key={movie.movieId}>
+                    <c-movie-card
+                        movie={movie}
+                        oninteractionrecorded={handleInteractionRecorded}
+                    ></c-movie-card>
+                </div>
+            </template>
+        </div>
+    </template>
+</template>
