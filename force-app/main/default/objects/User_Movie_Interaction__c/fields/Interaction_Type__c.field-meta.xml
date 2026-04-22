@@ -3,7 +3,7 @@
     <fullName>Interaction_Type__c</fullName>
     <label>Interaction Type</label>
     <required>true</required>
-    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
     <type>Picklist</type>
     <valueSet>
         <restricted>true</restricted>

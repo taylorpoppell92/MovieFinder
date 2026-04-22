@@ -19,9 +19,6 @@
     <types>
         <members>TMDB_Config__mdt.API_Key__c</members>
         <members>TMDB_Config__mdt.Watch_Region__c</members>
-        <name>CustomField</name>
-    </types>
-    <types>
         <members>Movie_Availability__c.Availability_Type__c</members>
         <members>Movie_Availability__c.Available_As_Of__c</members>
         <members>Movie_Availability__c.Expires_At__c</members>
@@ -76,6 +73,10 @@
     <types>
         <members>MovieFinder_User</members>
         <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>TMDB_API</members>
+        <name>NamedCredential</name>
     </types>
     <version>66.0</version>
 </Package>
