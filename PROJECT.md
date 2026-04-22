@@ -246,6 +246,169 @@ Queueable jobs run in a separate execution context — Developer Console logs fr
 
 ---
 
+## Architecture Diagrams
+
+> Diagrams use [Mermaid](https://mermaid.js.org/) and render natively on GitHub. In VS Code, install the [Mermaid Preview](https://marketplace.visualstudio.com/items?itemName=bierner.markdown-mermaid) extension. Editable draw.io source files live in [`docs/diagrams/`](docs/diagrams/) — open with the [Draw.io Integration](https://marketplace.visualstudio.com/items?itemName=hediet.vscode-drawio) extension.
+
+### System Context
+
+```mermaid
+graph TB
+    User(["👤 Salesforce User"])
+    SF["MovieFinder App\n(Salesforce Org)"]
+    TMDB["TMDB API v3\nmovie catalog + watch providers"]
+
+    User -->|"browse movies · rate · manage subscriptions"| SF
+    SF -->|"nightly sync via Named Credential"| TMDB
+    TMDB -->|"movie metadata + streaming availability"| SF
+
+    subgraph "User Data — Salesforce owned"
+        UMI["User_Movie_Interaction__c"]
+        US["User_Subscription__c"]
+    end
+
+    subgraph "Catalog Cache — TMDB sourced"
+        M["Movie__c"]
+        MA["Movie_Availability__c"]
+        SS["Streaming_Service__c"]
+    end
+```
+
+---
+
+### Data Model
+
+```mermaid
+erDiagram
+    Movie__c {
+        Text TMDB_Id__c "External ID — primary join key"
+        Text Name
+        URL Poster_URL__c
+        Number Release_Year__c
+        Number Aggregate_Rating__c
+        DateTime Last_Synced__c
+    }
+    Streaming_Service__c {
+        Text Service_Key__c "External ID"
+        Number TMDB_Provider_Id__c
+        Text Name
+        Checkbox Is_Active__c
+    }
+    Movie_Availability__c {
+        Picklist Availability_Type__c "Subscription, Rent, Buy, Free"
+        DateTime Available_As_Of__c
+        DateTime Expires_At__c
+    }
+    User_Subscription__c {
+        Checkbox Is_Active__c
+        DateTime Verified_At__c
+    }
+    User_Movie_Interaction__c {
+        Picklist Interaction_Type__c "Thumbs_Up, Thumbs_Down, Swipe_Right, Swipe_Left, Watchlisted, Watched"
+        Picklist Interaction_Source__c "Lightning, Mobile, Swipe_Session"
+        DateTime Interaction_DateTime__c
+        Text Swipe_Session_Id__c "UUID — null for non-swipe"
+    }
+
+    Movie__c ||--o{ Movie_Availability__c : "available on"
+    Streaming_Service__c ||--o{ Movie_Availability__c : "offers"
+    Streaming_Service__c ||--o{ User_Subscription__c : "subscribed to by user"
+    Movie__c ||--o{ User_Movie_Interaction__c : "interacted with"
+```
+
+---
+
+### Apex Service Layer
+
+```mermaid
+graph TD
+    LWC["LWC Components"]
+
+    LWC -->|"browse · filter · subscriptions"| MFC["MovieFinderController\n@AuraEnabled"]
+    LWC -->|"rate · swipe · watchlist"| UIS["UserInteractionService\n@AuraEnabled"]
+
+    MFC --> TMDB["TmdbApiService\nAll TMDB v3 callouts"]
+    TMDB -->|"Named Credential: TMDB_API"| API[("TMDB API v3")]
+
+    MFC --> DB[("Salesforce DB")]
+    UIS --> DB
+
+    SCHED["MovieAvailabilitySyncScheduler\n⏰ Nightly 2am"] -->|"enqueue one job\nper active service"| SYNC["MovieAvailabilitySync\nQueueable — self-chaining"]
+    SYNC --> TMDB
+    SYNC -->|"upsert Movie__c\nupsert Movie_Availability__c"| DB
+```
+
+---
+
+### Nightly Sync Sequence
+
+```mermaid
+sequenceDiagram
+    participant Cron as MovieAvailabilitySyncScheduler<br/>(Scheduled Apex, 2am)
+    participant Sync as MovieAvailabilitySync<br/>(Queueable)
+    participant TMDB as TMDB API v3
+    participant DB as Salesforce DB
+
+    loop One chain per active Streaming_Service__c
+        Cron->>Sync: enqueue(serviceId, page=1)
+        loop Until empty result page
+            Sync->>TMDB: GET /discover/movie<br/>?with_watch_providers={id}&page={n}
+            TMDB-->>Sync: 20 movie results
+            Sync->>DB: upsert Movie__c[] by TMDB_Id__c
+            Sync->>DB: upsert Movie_Availability__c[]
+            Sync->>Sync: enqueue(serviceId, page+1)
+        end
+    end
+
+    note over Sync: DE orgs: chain depth capped at 5<br/>(~80 movies/service). No limit in prod.
+```
+
+---
+
+### LWC Component Hierarchy
+
+```mermaid
+graph TD
+    APP["movieFinderApp\nTabbed shell — Browse · My Services"]
+
+    APP --> SM["subscriptionManager\nToggle cards per streaming service"]
+    APP --> MB["movieBrowser\nPaginated feed · owns filter state"]
+
+    MB --> MFB["movieFilterBar\nService + genre dropdowns"]
+    MB --> MG["movieGrid\nCSS grid layout"]
+
+    MG --> MC["movieCard\nPoster · overlay · rating badge"]
+    MC --> IB["interactionButtons\nThumbs up/down/watchlist · optimistic UI"]
+
+    IB -. "interactionrecorded event\n(composed: true — bubbles to movieBrowser)" .-> MB
+```
+
+---
+
+### Security Model
+
+```mermaid
+graph LR
+    subgraph "Public Read — all authenticated users"
+        M["Movie__c"]
+        SS["Streaming_Service__c"]
+        MA["Movie_Availability__c\n(Controlled by Parent)"]
+    end
+
+    subgraph "Private — record owner only"
+        US["User_Subscription__c"]
+        UMI["User_Movie_Interaction__c"]
+    end
+
+    PS["MovieFinder_User\nPermission Set"] -->|"Read"| M
+    PS -->|"Read"| SS
+    PS -->|"Read"| MA
+    PS -->|"CRUD"| US
+    PS -->|"CRUD"| UMI
+```
+
+---
+
 ## Repository
 
 GitHub: [https://github.com/taylorpoppell92/MovieFinder](https://github.com/taylorpoppell92/MovieFinder)  
