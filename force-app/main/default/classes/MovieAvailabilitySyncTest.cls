@@ -50,7 +50,8 @@ private class MovieAvailabilitySyncTest {
         Streaming_Service__c netflix = new Streaming_Service__c(
             Name                = 'Netflix',
             TMDB_Provider_Id__c = 8,
-            Is_Active__c        = true
+            Is_Active__c        = true,
+            Service_Key__c      = 'netflix'
         );
         insert netflix;
     }
@@ -198,7 +199,8 @@ private class MovieAvailabilitySyncTest {
         insert new Streaming_Service__c(
             Name                = 'Inactive Service',
             TMDB_Provider_Id__c = 99,
-            Is_Active__c        = false
+            Is_Active__c        = false,
+            Service_key__c      = 'inactiveservice'
         );
 
         Test.startTest();

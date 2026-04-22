@@ -29,6 +29,15 @@ private class UserInteractionServiceTest {
         );
         insert testUser;
 
+        PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = 'MovieFinder_User' LIMIT 1];
+        System.runAs(testUser) {
+            insert new PermissionSetAssignment(
+                AssigneeId      = testUser.Id,
+                PermissionSetId = ps.Id
+            );
+        }
+
+
         // Movie__c must be created by a user with access; insert as System here
         // since the running context is @TestSetup (no sharing enforcement issue).
         Movie__c movie = new Movie__c(
