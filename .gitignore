@@ -42,6 +42,9 @@ $RECYCLE.BIN/
 # Local environment variables
 .env
 
+# Sensitive custom metadata (contains API keys)
+force-app/main/default/customMetadata/TMDB_Config.Default.md-meta.xml
+
 # Python Salesforce Functions
 **/__pycache__/
 **/.venv/
