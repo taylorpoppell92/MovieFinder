@@ -75,8 +75,12 @@
         <name>PermissionSet</name>
     </types>
     <types>
-        <members>TMDB_API</members>
-        <name>NamedCredential</name>
+        <members>MovieFinder</members>
+        <name>CustomApplication</name>
+    </types>
+    <types>
+        <members>MovieFinder</members>
+        <name>CustomTab</name>
     </types>
     <version>66.0</version>
 </Package>

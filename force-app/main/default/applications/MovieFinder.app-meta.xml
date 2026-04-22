@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomApplication xmlns="http://soap.sforce.com/2006/04/metadata">
+    <defaultLandingTab>MovieFinder</defaultLandingTab>
+    <description>Browse and rate movies across your streaming subscriptions</description>
+    <formFactors>Large</formFactors>
+    <isNavAutoTempTabsDisabled>false</isNavAutoTempTabsDisabled>
+    <isNavPersonalizationDisabled>false</isNavPersonalizationDisabled>
+    <label>Movie Finder</label>
+    <navType>Standard</navType>
+    <tabs>MovieFinder</tabs>
+    <uiType>Lightning</uiType>
+</CustomApplication>

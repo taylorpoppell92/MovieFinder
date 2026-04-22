@@ -23,6 +23,7 @@ public class MovieAvailabilitySync implements Queueable, Database.AllowsCallouts
                 LIMIT 1
             ];
 
+            System.debug('###service: ' + service);
             // Step 2: Discover movies for this provider/page
             List<TmdbApiService.MovieResult> results =
                 TmdbApiService.discoverMoviesByProvider(
@@ -30,6 +31,7 @@ public class MovieAvailabilitySync implements Queueable, Database.AllowsCallouts
                     page
                 );
 
+            System.debug('###results: ' + results);
             // Step 3: Nothing came back — we have consumed all pages, stop chaining
             if (results == null || results.isEmpty()) {
                 System.debug(
@@ -57,7 +59,8 @@ public class MovieAvailabilitySync implements Queueable, Database.AllowsCallouts
                     Last_Synced__c      = Datetime.now()
                 ));
             }
-
+            
+            System.debug('###movies: ' + movies);
             // allOrNone=false: a single malformed record won't roll back the rest
             Database.upsert(movies, Movie__c.TMDB_Id__c, false);
 

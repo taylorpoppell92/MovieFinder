@@ -20,6 +20,7 @@ global class MovieAvailabilitySyncScheduler implements Schedulable {
             for (Streaming_Service__c service : activeServices) {
                 // Each service starts its own Queueable chain beginning at page 1.
                 // The chain self-terminates when TMDB returns fewer than 20 results.
+                System.debug('###service in scheduler: ' + service.Name);
                 System.enqueueJob(new MovieAvailabilitySync(service.Id, 1));
             }
 

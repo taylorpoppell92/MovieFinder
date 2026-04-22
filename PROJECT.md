@@ -153,6 +153,30 @@ force-app/main/default/customMetadata/TMDB_Config.Default.md-meta.xml
 
 ---
 
+## Application Shell
+
+### Custom Lightning App — `MovieFinder`
+`force-app/main/default/applications/MovieFinder.app-meta.xml`
+
+A Standard Lightning app with a single nav tab that lands directly on the LWC. No utility bar; no console layout.
+
+### Custom Tab — `MovieFinder`
+`force-app/main/default/tabs/MovieFinder.tab-meta.xml`
+
+A Lightning Component tab (`lwcComponent: movieFinderApp`) — renders the root LWC directly without a Flexipage layer. The LWC exposes `lightning__Tab`, `lightning__AppPage`, and `lightning__HomePage` targets.
+
+### CSP Trusted Site — Required for Poster Images
+TMDB poster images are loaded directly from `https://image.tmdb.org` in the browser. Salesforce's Content Security Policy blocks external image domains by default. Without this, the `<img onerror>` handler fires and the fallback title div is shown instead of the poster.
+
+**Setup → Security → CSP Trusted Sites → New:**
+| Field | Value |
+|---|---|
+| Name | `TMDB_Images` |
+| Trusted Site URL | `https://image.tmdb.org` |
+| Context | All (or img-src) |
+
+---
+
 ## LWC Component Hierarchy
 
 ```
@@ -189,15 +213,36 @@ All Apex controller classes use `with sharing` — sharing rules are enforced on
 
 ---
 
+## Dev Org Notes
+
+### Queueable Chain Depth Limit
+Developer Edition orgs cap Queueable chain depth at 5. `MovieAvailabilitySync` chains one job per TMDB page, so it stops after page 5 (~80 movies per service) in a DE org. **This is not a production issue** — production and sandbox orgs have no chain limit. The nightly scheduler will page through all 500 TMDB pages without hitting this limit in prod.
+
+**Workaround for more data in a DE org:** Enqueue pages independently from Anonymous Apex (each call is a fresh chain, not a continuation):
+```apex
+Id svcId = [SELECT Id FROM Streaming_Service__c WHERE Service_Key__c = 'netflix' LIMIT 1].Id;
+System.enqueueJob(new MovieAvailabilitySync(svcId, 5));
+System.enqueueJob(new MovieAvailabilitySync(svcId, 9));
+// etc.
+```
+
+### Async Debug Logs
+Queueable jobs run in a separate execution context — Developer Console logs from Anonymous Apex won't include them. To see job output:
+1. Setup → Debug Logs → New → add **"Automated Process"** entity at Apex Code: FINEST
+2. Or: `sf apex tail log --color --target-org devorg` (streams all entities in real time)
+
+---
+
 ## Deployment Checklist
 
-- [ ] Add TMDB API key to `TMDB_Config__mdt` Default record in the org
-- [ ] Deploy using `sf project deploy start --manifest package-moviepicker.xml --target-org devorg`
-- [ ] Seed `Streaming_Service__c` records with TMDB provider IDs (Netflix=8, Prime Video=9, Disney+=337, Hulu=15, Max=1899, Apple TV+=350)
-- [ ] Run nightly sync manually to seed initial movie catalog: `System.enqueueJob(new MovieAvailabilitySync(netflixServiceId, 1))`
+- [x] Add TMDB API key to `TMDB_Config__mdt` Default record in the org *(Setup → Custom Metadata Types → TMDB Config → Manage Records → Default)*
+- [x] Deploy using `sf project deploy start --manifest package-moviepicker.xml --target-org devorg`
+- [x] Seed `Streaming_Service__c` records — Netflix=8, Amazon Prime=9, Disney+=337, Hulu=15, Max=1899, Apple TV+=350
+- [x] Run nightly sync manually to seed initial movie catalog
+- [x] Custom Lightning App (`MovieFinder`) and Tab deployed — accessible from App Launcher
+- [x] Assign `MovieFinder_User` permission set to users
+- [x] Add CSP Trusted Site for `https://image.tmdb.org` (required for poster images)
 - [ ] Schedule the nightly job: `System.schedule('MovieFinder Nightly Sync', '0 0 2 * * ?', new MovieAvailabilitySyncScheduler())`
-- [ ] Add `movieFinderApp` to a Lightning App Page
-- [ ] Assign `MovieFinder_User` permission set to users
 
 ---
 
