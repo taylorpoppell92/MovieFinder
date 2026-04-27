@@ -10,14 +10,14 @@ The app aggregates movie availability across every streaming service the user su
 
 ## Roadmap
 
-### Phase 1 — Internal Salesforce App ✅ (Current)
+### Phase 1 — Internal Salesforce App ✅ (Complete)
 - Browse all movies available on user's subscriptions
 - Thumbs up / thumbs down rating
 - Filter by streaming service
 - Paginated movie grid with poster art
 - User manages their own subscription list
 
-### Phase 2 — Swipe UX + Mobile
+### Phase 2 — Swipe UX + Mobile ✅ (Complete)
 - Tinder-style swipe left (skip) / right (interested) on full-screen movie cards
 - Swipe session tracking (grouped interactions)
 - Salesforce Mobile app support
@@ -242,7 +242,45 @@ Queueable jobs run in a separate execution context — Developer Console logs fr
 - [x] Custom Lightning App (`MovieFinder`) and Tab deployed — accessible from App Launcher
 - [x] Assign `MovieFinder_User` permission set to users
 - [x] Add CSP Trusted Site for `https://image.tmdb.org` (required for poster images)
-- [ ] Schedule the nightly job: `System.schedule('MovieFinder Nightly Sync', '0 0 2 * * ?', new MovieAvailabilitySyncScheduler())`
+- [x] Schedule the nightly job: `System.schedule('MovieFinder Nightly Sync', '0 0 2 * * ?', new MovieAvailabilitySyncScheduler())`
+
+---
+
+## Phase 2 Punchlist — Swipe UX + Mobile
+
+> **Panel note (2026-04-22):** Before writing any swipe code, the panel identified that `Swipe_Session_Id__c` as a bare Text(36) UUID is the wrong abstraction for shared sessions. The Architecture section below must be completed first — it unblocks clean Apex method signatures, LWC contracts, and the sharing model before any of those are built.
+
+### Architecture / Data Model
+
+- [x] Create `Swipe_Session__c` custom object — fields: `Owner_User__c` (Lookup → User), `Status__c` (Picklist: Active, Completed), `Started_At__c` (DateTime), `Ended_At__c` (DateTime), `Movie_Queue__c` (LongTextArea — queue snapshot). OWD: Private.
+- [x] Replace `Swipe_Session_Id__c` Text(36) on `User_Movie_Interaction__c` with a Lookup to `Swipe_Session__c` (field API name: `Swipe_Session__c`)
+- [x] Create `MatchDetectionService.cls` stub — `without sharing`, empty body, sharing rationale documented in comments
+- [x] Add `Swipe_Session__c` to `package-moviepicker.xml` and `MovieFinder_User` permission set
+
+### Apex
+
+- [x] `UserInteractionService.startSwipeSession()` — inserts a `Swipe_Session__c` record (Status=Active, Started_At=now), returns Salesforce Id
+- [x] `UserInteractionService.recordSwipe(movieId, direction, sessionId)` — inserts/updates `User_Movie_Interaction__c` with Swipe_Right or Swipe_Left, Lookup to `Swipe_Session__c`
+- [x] `UserInteractionService.getNextSwipeMovie(sessionId)` — snapshots eligible movie queue into `Movie_Queue__c` on first call, returns next un-swiped `Movie__c`
+- [x] `SwipeSessionSummaryDto` inner class — `swipedRight`, `swipedLeft`, `matchCount` (default 0, wired to `MatchDetectionService` in Phase 3)
+- [x] `UserInteractionService.endSwipeSession(sessionId)` — marks session Completed, stamps `Ended_At__c`, returns `SwipeSessionSummaryDto`
+- [x] 16-test coverage: all swipe methods, deck exhaustion, no-subscription, and two-user same-movie collision assertion
+
+### LWC — New Components
+
+- [x] `swipeCard` — full-screen movie card with touch + mouse drag, real-time `translateX + rotate` transform, green/red tint overlay, LIKE/SKIP stamps, fly-out animation, `swiped` event `{ direction, movieId, sessionId }`
+- [x] `swipeSession` — async session orchestrator; keyed `for:each` forces fresh `swipeCard` instances per movie; fire-and-forget `recordSwipe`; `sessionEnded` event with `SwipeSessionSummaryDto`
+
+### LWC — Integration
+
+- [x] Swipe tab added to `movieFinderApp` alongside Browse and My Services
+- [ ] Add MovieFinder to Salesforce Mobile Navigation (Setup → Salesforce Mobile App → Navigation → add MovieFinder tab)
+- [ ] Smoke-test swipe gestures on a real iOS/Android device via Salesforce Mobile app
+
+### Deployment
+
+- [x] `package-moviepicker.xml` updated with `swipeCard`, `swipeSession`, `Swipe_Session__c` object and fields
+- [x] Deployed successfully — 67/67 components, 0 errors (2026-04-27)
 
 ---
 

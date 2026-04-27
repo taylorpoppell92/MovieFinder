@@ -11,5 +11,10 @@
                 onserviceselected={handleServiceSelected}
             ></c-subscription-manager>
         </lightning-tab>
+        <lightning-tab label="Swipe" value="swipe">
+            <c-swipe-session
+                onsessionended={handleSessionEnded}
+            ></c-swipe-session>
+        </lightning-tab>
     </lightning-tabset>
 </template>

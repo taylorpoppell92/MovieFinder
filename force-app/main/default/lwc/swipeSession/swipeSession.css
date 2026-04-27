@@ -1,0 +1,105 @@
+:host {
+    display: block;
+}
+
+/* ---- Loading ---- */
+
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+/* ---- Active swipe deck ---- */
+
+.session-container {
+    position: relative;
+    /* Phone-card proportions on desktop; full width on mobile */
+    height: 70vh;
+    max-width: 420px;
+    margin: 16px auto 0;
+}
+
+/* Subtle drag-direction hints at the bottom of the card area */
+.swipe-hints {
+    position: absolute;
+    bottom: -32px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 16px;
+    pointer-events: none;
+}
+
+.hint {
+    font-size: 0.8rem;
+    color: #888;
+    letter-spacing: 0.03em;
+}
+
+.like-hint { color: #22c55e; }
+.skip-hint { color: #ef4444; }
+
+/* ---- End of deck ---- */
+
+.end-of-deck {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 24px;
+    min-height: 400px;
+    gap: 16px;
+}
+
+.end-icon-text {
+    font-size: 3rem;
+    margin: 0;
+    color: #555;
+    font-family: monospace;
+}
+
+.end-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--lwc-colorTextDefault, #181818);
+}
+
+.end-subtitle {
+    font-size: 0.95rem;
+    color: #666;
+    margin: 0;
+    max-width: 340px;
+    line-height: 1.5;
+}
+
+.summary {
+    display: flex;
+    gap: 40px;
+    margin: 8px 0;
+}
+
+.summary-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.stat-num {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--lwc-colorTextDefault, #181818);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}

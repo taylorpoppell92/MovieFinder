@@ -1,7 +1,7 @@
 public with sharing class UserInteractionService {
 
     // -------------------------------------------------------------------------
-    // DTO
+    // DTOs
     // -------------------------------------------------------------------------
 
     public class InteractionDto {
@@ -13,6 +13,12 @@ public with sharing class UserInteractionService {
         @AuraEnabled public Datetime interactionDateTime;
     }
 
+    public class SwipeSessionSummaryDto {
+        @AuraEnabled public Integer swipedRight = 0;
+        @AuraEnabled public Integer swipedLeft  = 0;
+        @AuraEnabled public Integer matchCount  = 0; // Phase 3: populated by MatchDetectionService
+    }
+
     // -------------------------------------------------------------------------
     // Constants
     // -------------------------------------------------------------------------
@@ -21,7 +27,6 @@ public with sharing class UserInteractionService {
         'Thumbs_Up', 'Thumbs_Down', 'Watchlisted', 'Watched'
     };
 
-    // The two types that are mutually exclusive with each other per movie
     private static final Map<String, String> OPPOSITE_THUMB = new Map<String, String>{
         'Thumbs_Up'   => 'Thumbs_Down',
         'Thumbs_Down' => 'Thumbs_Up'
@@ -57,7 +62,6 @@ public with sharing class UserInteractionService {
 
         String userId = UserInfo.getUserId();
 
-        // Query for the requested type AND its opposite (if applicable) in one round trip
         String oppositeType = OPPOSITE_THUMB.get(interactionType);
         Set<String> typesToQuery = new Set<String>{ interactionType };
         if (oppositeType != null) {
@@ -67,9 +71,9 @@ public with sharing class UserInteractionService {
         List<User_Movie_Interaction__c> existing = [
             SELECT Id, Interaction_Type__c
             FROM   User_Movie_Interaction__c
-            WHERE  User__c              = :userId
-            AND    Movie__c             = :movieId
-            AND    Interaction_Type__c  IN :typesToQuery
+            WHERE  User__c             = :userId
+            AND    Movie__c            = :movieId
+            AND    Interaction_Type__c IN :typesToQuery
             WITH USER_MODE
         ];
 
@@ -84,16 +88,13 @@ public with sharing class UserInteractionService {
             }
         }
 
-        // Delete the opposite thumb before anything else (mutual exclusivity)
         if (oppositeRecord != null) {
             delete oppositeRecord;
         }
 
         if (matchedRecord != null) {
-            // Toggle off — user un-selected the same type they already had
             delete matchedRecord;
         } else {
-            // Insert new interaction
             insert new User_Movie_Interaction__c(
                 User__c                 = userId,
                 Movie__c                = movieId,
@@ -109,17 +110,18 @@ public with sharing class UserInteractionService {
     // -------------------------------------------------------------------------
 
     /**
-     * Generates a UUID-style session ID for a swipe session.
-     * The LWC stamps this on each recordSwipe call so swipes can be grouped.
+     * Creates a Swipe_Session__c record for the current user and returns its Id.
+     * The LWC holds this Id for the session lifetime and passes it to recordSwipe.
      */
     @AuraEnabled(cacheable=false)
     public static String startSwipeSession() {
-        // AES-128 key gives us 32 hex chars; we need 36 to fill the field.
-        // Use two key segments and concatenate to get enough entropy, then truncate.
-        String hex = EncodingUtil.convertToHex(Crypto.generateAesKey(128));
-        // hex is 32 chars. Pad to 36 by appending 4 more chars from a second key.
-        String hex2 = EncodingUtil.convertToHex(Crypto.generateAesKey(128));
-        return (hex + hex2).substring(0, 36);
+        Swipe_Session__c session = new Swipe_Session__c(
+            Owner_User__c = UserInfo.getUserId(),
+            Status__c     = 'Active',
+            Started_At__c = Datetime.now()
+        );
+        insert session;
+        return session.Id;
     }
 
     // -------------------------------------------------------------------------
@@ -128,15 +130,14 @@ public with sharing class UserInteractionService {
 
     /**
      * Records a swipe left or right within a swipe session.
-     * Uses a composite check (User + Movie + SwipeSessionId) to prevent duplicates
-     * while still allowing the interaction to be updated if the user swipes again
-     * on the same card in the same session.
+     * If the user swipes the same card again in the same session, the direction
+     * is updated rather than inserting a duplicate.
      */
     @AuraEnabled(cacheable=false)
     public static void recordSwipe(
         String movieId,
         String direction,
-        String swipeSessionId
+        String sessionId
     ) {
         String interactionType;
         if (direction == 'right') {
@@ -154,15 +155,14 @@ public with sharing class UserInteractionService {
         List<User_Movie_Interaction__c> existing = [
             SELECT Id
             FROM   User_Movie_Interaction__c
-            WHERE  User__c             = :userId
-            AND    Movie__c            = :movieId
-            AND    Swipe_Session_Id__c = :swipeSessionId
+            WHERE  User__c          = :userId
+            AND    Movie__c         = :movieId
+            AND    Swipe_Session__c = :sessionId
             WITH USER_MODE
             LIMIT 1
         ];
 
         if (!existing.isEmpty()) {
-            // Update the existing record in case direction changed within the session
             User_Movie_Interaction__c rec = existing[0];
             rec.Interaction_Type__c     = interactionType;
             rec.Interaction_DateTime__c = Datetime.now();
@@ -174,19 +174,149 @@ public with sharing class UserInteractionService {
                 Interaction_Type__c     = interactionType,
                 Interaction_Source__c   = 'Swipe_Session',
                 Interaction_DateTime__c = Datetime.now(),
-                Swipe_Session_Id__c     = swipeSessionId
+                Swipe_Session__c        = sessionId
             );
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // getNextSwipeMovie
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns the next Movie__c the user has not yet swiped in this session.
+     * On the first call the eligible movie set is snapshotted (ordered by
+     * TMDB_Popularity__c desc) into Swipe_Session__c.Movie_Queue__c so that
+     * subsequent calls are cheap and the queue is stable for the session lifetime.
+     * Returns null when the deck is exhausted.
+     */
+    @AuraEnabled(cacheable=false)
+    public static Movie__c getNextSwipeMovie(String sessionId) {
+        Swipe_Session__c session = [
+            SELECT Id, Movie_Queue__c, Owner_User__c
+            FROM   Swipe_Session__c
+            WHERE  Id = :sessionId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+
+        List<String> queue = String.isBlank(session.Movie_Queue__c)
+            ? buildAndSnapshotQueue(session)
+            : (List<String>) JSON.deserialize(session.Movie_Queue__c, List<String>.class);
+
+        Set<String> swiped = new Set<String>();
+        for (User_Movie_Interaction__c rec : [
+            SELECT Movie__c
+            FROM   User_Movie_Interaction__c
+            WHERE  Swipe_Session__c = :sessionId
+            AND    User__c          = :UserInfo.getUserId()
+            WITH USER_MODE
+        ]) {
+            swiped.add(rec.Movie__c);
+        }
+
+        Id nextMovieId;
+        for (String movieId : queue) {
+            if (!swiped.contains(movieId)) {
+                nextMovieId = movieId;
+                break;
+            }
+        }
+
+        if (nextMovieId == null) {
+            return null;
+        }
+
+        return [
+            SELECT Id, Name, Poster_URL__c, Backdrop_URL__c,
+                   Release_Year__c, Overview__c, Genre_Tags__c,
+                   Runtime_Minutes__c, Aggregate_Rating__c, Content_Rating__c,
+                   TMDB_Popularity__c
+            FROM   Movie__c
+            WHERE  Id = :nextMovieId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+    }
+
+    private static List<String> buildAndSnapshotQueue(Swipe_Session__c session) {
+        Set<Id> serviceIds = new Set<Id>();
+        for (User_Subscription__c sub : [
+            SELECT Streaming_Service__c
+            FROM   User_Subscription__c
+            WHERE  User__c      = :session.Owner_User__c
+            AND    Is_Active__c = true
+            WITH USER_MODE
+        ]) {
+            serviceIds.add(sub.Streaming_Service__c);
+        }
+
+        List<String> queue = new List<String>();
+
+        if (!serviceIds.isEmpty()) {
+            for (Movie__c movie : [
+                SELECT Id
+                FROM   Movie__c
+                WHERE  Id IN (
+                    SELECT Movie__c
+                    FROM   Movie_Availability__c
+                    WHERE  Streaming_Service__c IN :serviceIds
+                    AND    Availability_Type__c  = 'Subscription'
+                )
+                WITH USER_MODE
+                ORDER BY TMDB_Popularity__c DESC NULLS LAST
+                LIMIT  500
+            ]) {
+                queue.add(movie.Id);
+            }
+        }
+
+        session.Movie_Queue__c = JSON.serialize(queue);
+        update session;
+        return queue;
+    }
+
+    // -------------------------------------------------------------------------
+    // endSwipeSession
+    // -------------------------------------------------------------------------
+
+    /**
+     * Marks the session Completed, stamps Ended_At, and returns a summary.
+     * matchCount is always 0 in Phase 2 — Phase 3 wires MatchDetectionService here.
+     */
+    @AuraEnabled(cacheable=false)
+    public static SwipeSessionSummaryDto endSwipeSession(String sessionId) {
+        Swipe_Session__c session = [
+            SELECT Id
+            FROM   Swipe_Session__c
+            WHERE  Id = :sessionId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        session.Status__c   = 'Completed';
+        session.Ended_At__c = Datetime.now();
+        update session;
+
+        SwipeSessionSummaryDto dto = new SwipeSessionSummaryDto();
+        for (AggregateResult row : [
+            SELECT Interaction_Type__c type, COUNT(Id) cnt
+            FROM   User_Movie_Interaction__c
+            WHERE  Swipe_Session__c = :sessionId
+            AND    User__c          = :UserInfo.getUserId()
+            GROUP BY Interaction_Type__c
+        ]) {
+            String t  = (String)  row.get('type');
+            Integer c = Integer.valueOf(row.get('cnt'));
+            if (t == 'Swipe_Right') dto.swipedRight = c;
+            if (t == 'Swipe_Left')  dto.swipedLeft  = c;
+        }
+        return dto;
     }
 
     // -------------------------------------------------------------------------
     // getUserInteractions
     // -------------------------------------------------------------------------
 
-    /**
-     * Returns all interactions the current user has recorded for a given movie.
-     * Cacheable — safe because it only ever returns data for the running user.
-     */
     @AuraEnabled(cacheable=true)
     public static List<InteractionDto> getUserInteractions(String movieId) {
         List<User_Movie_Interaction__c> records = [
@@ -194,7 +324,7 @@ public with sharing class UserInteractionService {
                    Movie__c,
                    Interaction_Type__c,
                    Interaction_Source__c,
-                   Swipe_Session_Id__c,
+                   Swipe_Session__c,
                    Interaction_DateTime__c
             FROM   User_Movie_Interaction__c
             WHERE  User__c  = :UserInfo.getUserId()
@@ -205,13 +335,13 @@ public with sharing class UserInteractionService {
 
         List<InteractionDto> dtos = new List<InteractionDto>();
         for (User_Movie_Interaction__c rec : records) {
-            InteractionDto dto       = new InteractionDto();
-            dto.interactionId        = rec.Id;
-            dto.movieId              = rec.Movie__c;
-            dto.interactionType      = rec.Interaction_Type__c;
-            dto.source               = rec.Interaction_Source__c;
-            dto.swipeSessionId       = rec.Swipe_Session_Id__c;
-            dto.interactionDateTime  = rec.Interaction_DateTime__c;
+            InteractionDto dto      = new InteractionDto();
+            dto.interactionId       = rec.Id;
+            dto.movieId             = rec.Movie__c;
+            dto.interactionType     = rec.Interaction_Type__c;
+            dto.source              = rec.Interaction_Source__c;
+            dto.swipeSessionId      = rec.Swipe_Session__c;
+            dto.interactionDateTime = rec.Interaction_DateTime__c;
             dtos.add(dto);
         }
         return dtos;
@@ -221,10 +351,6 @@ public with sharing class UserInteractionService {
     // clearInteraction
     // -------------------------------------------------------------------------
 
-    /**
-     * Explicitly removes a single interaction type for the current user + movie.
-     * No-op if the record does not exist.
-     */
     @AuraEnabled(cacheable=false)
     public static void clearInteraction(String movieId, String interactionType) {
         List<User_Movie_Interaction__c> toDelete = [

@@ -1,0 +1,59 @@
+<template>
+    <!-- Loading (session start or awaiting next movie) -->
+    <template if:true={isLoading}>
+        <div class="loading-container">
+            <lightning-spinner alternative-text="Loading..." size="large"></lightning-spinner>
+        </div>
+    </template>
+
+    <template if:false={isLoading}>
+
+        <!-- Active swipe deck -->
+        <template if:true={showCard}>
+            <div class="session-container">
+                <template for:each={currentMovieList} for:item="movie">
+                    <c-swipe-card
+                        key={movie.Id}
+                        movie={movie}
+                        session-id={sessionId}
+                        onswiped={handleSwiped}
+                    ></c-swipe-card>
+                </template>
+                <div class="swipe-hints">
+                    <span class="hint skip-hint">&larr; Skip</span>
+                    <span class="hint like-hint">Like &rarr;</span>
+                </div>
+            </div>
+        </template>
+
+        <!-- End of deck -->
+        <template if:true={showEndOfDeck}>
+            <div class="end-of-deck">
+                <p class="end-icon-text">[  ]</p>
+                <h2 class="end-title">All caught up!</h2>
+                <p class="end-subtitle">
+                    You have seen every movie available on your streaming services.
+                    Check back after the next nightly sync for new titles.
+                </p>
+                <template if:true={summary}>
+                    <div class="summary">
+                        <div class="summary-stat">
+                            <span class="stat-num">{summary.swipedRight}</span>
+                            <span class="stat-label">Liked</span>
+                        </div>
+                        <div class="summary-stat">
+                            <span class="stat-num">{summary.swipedLeft}</span>
+                            <span class="stat-label">Skipped</span>
+                        </div>
+                    </div>
+                </template>
+                <lightning-button
+                    label="Swipe Again"
+                    variant="brand"
+                    onclick={handleSwipeAgain}
+                ></lightning-button>
+            </div>
+        </template>
+
+    </template>
+</template>

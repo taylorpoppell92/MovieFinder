@@ -1,0 +1,55 @@
+<template>
+    <!-- Container captures all pointer events even as the inner card translates -->
+    <div class="swipe-container"
+         onmousedown={handleDragStart}
+         ontouchstart={handleDragStart}
+         onmousemove={handleDragMove}
+         ontouchmove={handleDragMove}
+         onmouseup={handleDragEnd}
+         ontouchend={handleDragEnd}
+         onmouseleave={handleDragCancel}>
+
+        <div class="swipe-card">
+
+            <!-- Backdrop image fills the card -->
+            <template if:false={showFallback}>
+                <img
+                    class="card-image"
+                    src={imageUrl}
+                    alt={movieTitle}
+                    draggable="false"
+                    onerror={handleImageError}
+                />
+            </template>
+            <template if:true={showFallback}>
+                <div class="card-image-fallback">
+                    <span>{movieTitle}</span>
+                </div>
+            </template>
+
+            <!-- Direction indicators — opacity driven by JS during drag -->
+            <div class="indicator like-indicator">LIKE</div>
+            <div class="indicator skip-indicator">SKIP</div>
+
+            <!-- Colour-tint overlay — background-color driven by JS during drag -->
+            <div class="drag-overlay"></div>
+
+            <!-- Bottom info overlay -->
+            <div class="card-overlay">
+                <h2 class="card-title">{movieTitle}</h2>
+                <p class="card-meta">
+                    <template if:true={movieYear}>{movieYear}</template>
+                    <template if:true={contentRating}>&nbsp;·&nbsp;{contentRating}</template>
+                    <template if:true={runtime}>&nbsp;·&nbsp;{runtime}m</template>
+                </p>
+                <template if:true={overview}>
+                    <p class="card-overview">{overview}</p>
+                </template>
+                <template if:true={aggregateRating}>
+                    <span class="rating-badge">★ {aggregateRating}</span>
+                </template>
+            </div>
+
+        </div>
+    </div>
+</template>

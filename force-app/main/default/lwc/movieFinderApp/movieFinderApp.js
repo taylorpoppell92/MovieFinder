@@ -8,9 +8,10 @@ export default class MovieFinderApp extends LightningElement {
     }
 
     handleInteractionRecorded(evt) {
-        // Top-level handler — event is already bubbled up from movieBrowser.
-        // Nothing to do here, but stopping propagation to prevent any
-        // unintended platform-level bubble behavior.
         evt.stopPropagation();
+    }
+
+    handleSessionEnded() {
+        // Reserved for future shared-session match surfacing (Phase 3).
     }
 }

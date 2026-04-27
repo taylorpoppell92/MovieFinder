@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
+        <members>MatchDetectionService</members>
         <members>MovieAvailabilitySync</members>
         <members>MovieAvailabilitySyncScheduler</members>
         <members>MovieAvailabilitySyncTest</members>
@@ -39,11 +40,16 @@
         <members>Streaming_Service__c.Logo_URL__c</members>
         <members>Streaming_Service__c.Service_Key__c</members>
         <members>Streaming_Service__c.TMDB_Provider_Id__c</members>
+        <members>Swipe_Session__c.Ended_At__c</members>
+        <members>Swipe_Session__c.Movie_Queue__c</members>
+        <members>Swipe_Session__c.Owner_User__c</members>
+        <members>Swipe_Session__c.Started_At__c</members>
+        <members>Swipe_Session__c.Status__c</members>
         <members>User_Movie_Interaction__c.Interaction_DateTime__c</members>
         <members>User_Movie_Interaction__c.Interaction_Source__c</members>
         <members>User_Movie_Interaction__c.Interaction_Type__c</members>
         <members>User_Movie_Interaction__c.Movie__c</members>
-        <members>User_Movie_Interaction__c.Swipe_Session_Id__c</members>
+        <members>User_Movie_Interaction__c.Swipe_Session__c</members>
         <members>User_Movie_Interaction__c.User__c</members>
         <members>User_Subscription__c.Is_Active__c</members>
         <members>User_Subscription__c.Streaming_Service__c</members>
@@ -56,6 +62,7 @@
         <members>Movie_Availability__c</members>
         <members>Movie__c</members>
         <members>Streaming_Service__c</members>
+        <members>Swipe_Session__c</members>
         <members>User_Movie_Interaction__c</members>
         <members>User_Subscription__c</members>
         <name>CustomObject</name>
@@ -68,6 +75,8 @@
         <members>movieFinderApp</members>
         <members>movieGrid</members>
         <members>subscriptionManager</members>
+        <members>swipeCard</members>
+        <members>swipeSession</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
