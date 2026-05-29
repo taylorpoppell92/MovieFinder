@@ -44,6 +44,7 @@ $RECYCLE.BIN/
 
 # Sensitive custom metadata (contains API keys)
 force-app/main/default/customMetadata/TMDB_Config.Default.md-meta.xml
+force-app/main/default/customMetadata/LLM_Config.Default.md-meta.xml
 
 # Python Salesforce Functions
 **/__pycache__/

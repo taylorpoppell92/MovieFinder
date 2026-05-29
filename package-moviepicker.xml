@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
+        <members>AiRecommendationService</members>
+        <members>AiRecommendationServiceTest</members>
         <members>MatchDetectionService</members>
         <members>MovieAvailabilitySync</members>
+        <members>MovieRecommendationQueueable</members>
+        <members>MovieRecommendationQueueableTest</members>
         <members>MovieAvailabilitySyncScheduler</members>
         <members>MovieAvailabilitySyncTest</members>
         <members>MovieFinderController</members>
@@ -14,10 +18,12 @@
         <name>ApexClass</name>
     </types>
     <types>
+        <members>LLM_Config.Default</members>
         <members>TMDB_Config.Default</members>
         <name>CustomMetadata</name>
     </types>
     <types>
+        <members>LLM_Config__mdt.API_Key__c</members>
         <members>TMDB_Config__mdt.API_Key__c</members>
         <members>TMDB_Config__mdt.Watch_Region__c</members>
         <members>Movie_Availability__c.Availability_Type__c</members>
@@ -51,6 +57,10 @@
         <members>User_Movie_Interaction__c.Movie__c</members>
         <members>User_Movie_Interaction__c.Swipe_Session__c</members>
         <members>User_Movie_Interaction__c.User__c</members>
+        <members>User_Preference__c.Last_Updated__c</members>
+        <members>User_Preference__c.Profile_Version__c</members>
+        <members>User_Preference__c.Taste_Profile__c</members>
+        <members>User_Preference__c.User__c</members>
         <members>User_Subscription__c.Is_Active__c</members>
         <members>User_Subscription__c.Streaming_Service__c</members>
         <members>User_Subscription__c.User__c</members>
@@ -58,12 +68,14 @@
         <name>CustomField</name>
     </types>
     <types>
+        <members>LLM_Config__mdt</members>
         <members>TMDB_Config__mdt</members>
         <members>Movie_Availability__c</members>
         <members>Movie__c</members>
         <members>Streaming_Service__c</members>
         <members>Swipe_Session__c</members>
         <members>User_Movie_Interaction__c</members>
+        <members>User_Preference__c</members>
         <members>User_Subscription__c</members>
         <name>CustomObject</name>
     </types>

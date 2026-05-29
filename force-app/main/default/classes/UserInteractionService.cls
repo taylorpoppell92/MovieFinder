@@ -307,6 +307,15 @@ public with sharing class UserInteractionService {
         session.Ended_At__c = Datetime.now();
         update session;
 
+        // Enqueue taste-profile refresh AFTER the DML commit.
+        // Salesforce forbids callouts in the same transaction as DML, so the
+        // LLM call lives in a Queueable that starts in a fresh transaction.
+        // Skipped in test context to avoid requiring LLM mock setup in every
+        // endSwipeSession test — covered by MovieRecommendationQueueableTest.
+        if (!Test.isRunningTest()) {
+            System.enqueueJob(new MovieRecommendationQueueable(UserInfo.getUserId()));
+        }
+
         SwipeSessionSummaryDto dto = new SwipeSessionSummaryDto();
         for (AggregateResult row : [
             SELECT Interaction_Type__c type, COUNT(Id) cnt
