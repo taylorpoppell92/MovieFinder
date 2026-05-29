@@ -63,11 +63,16 @@ private class UserInteractionServiceTest {
         );
         insert svc;
 
-        insert new User_Subscription__c(
-            User__c              = testUser1.Id,
-            Streaming_Service__c = svc.Id,
-            Is_Active__c         = true
-        );
+        // Insert subscription as testUser1 so they own the record.
+        // OWD for User_Subscription__c is Private — WITH USER_MODE queries only
+        // return records the running user owns, so the owner must be testUser1.
+        System.runAs(testUser1) {
+            insert new User_Subscription__c(
+                User__c              = testUser1.Id,
+                Streaming_Service__c = svc.Id,
+                Is_Active__c         = true
+            );
+        }
 
         insert new List<Movie_Availability__c>{
             new Movie_Availability__c(
@@ -454,7 +459,7 @@ private class UserInteractionServiceTest {
         Test.startTest();
         Movie__c result;
         System.runAs(u) {
-            result = UserInteractionService.getNextSwipeMovie(sessionId);
+            result = UserInteractionService.getNextSwipeMovie(sessionId, null);
         }
         Test.stopTest();
 
@@ -475,19 +480,47 @@ private class UserInteractionServiceTest {
         System.runAs(u) {
             sessionId = UserInteractionService.startSwipeSession();
             // Snapshot the queue and swipe the first movie
-            UserInteractionService.getNextSwipeMovie(sessionId);
+            UserInteractionService.getNextSwipeMovie(sessionId, null);
             UserInteractionService.recordSwipe(m1.Id, 'right', sessionId);
         }
 
         Test.startTest();
         Movie__c result;
         System.runAs(u) {
-            result = UserInteractionService.getNextSwipeMovie(sessionId);
+            result = UserInteractionService.getNextSwipeMovie(sessionId, null);
         }
         Test.stopTest();
 
         Assert.isNotNull(result, 'Should return the second movie after swiping the first');
         Assert.areNotEqual(m1.Id, result.Id, 'Result should not be the already-swiped movie');
+    }
+
+    // -------------------------------------------------------------------------
+    // getNextSwipeMovie — excludeMovieId skips card even without a committed swipe
+    // (race-condition guard: recordSwipe DML may still be in-flight)
+    // -------------------------------------------------------------------------
+
+    @IsTest
+    static void getNextSwipeMovie_excludeMovieId_skipsSpecifiedMovie() {
+        User     u  = getTestUser();
+        Movie__c m1 = getTestMovie();   // higher popularity — would be first in queue
+        String   sessionId;
+
+        System.runAs(u) {
+            sessionId = UserInteractionService.startSwipeSession();
+        }
+
+        Test.startTest();
+        Movie__c result;
+        System.runAs(u) {
+            // Simulate the race condition: pass m1's Id as excludeMovieId
+            // WITHOUT having called recordSwipe first (DML not committed).
+            result = UserInteractionService.getNextSwipeMovie(sessionId, m1.Id);
+        }
+        Test.stopTest();
+
+        Assert.isNotNull(result, 'Should return a movie (the second one) when first is excluded');
+        Assert.areNotEqual(m1.Id, result.Id, 'Should skip the excluded movie even without a committed swipe record');
     }
 
     // -------------------------------------------------------------------------
@@ -503,7 +536,7 @@ private class UserInteractionServiceTest {
 
         System.runAs(u) {
             sessionId = UserInteractionService.startSwipeSession();
-            UserInteractionService.getNextSwipeMovie(sessionId);
+            UserInteractionService.getNextSwipeMovie(sessionId, null);
             UserInteractionService.recordSwipe(m1.Id, 'right', sessionId);
             UserInteractionService.recordSwipe(m2.Id, 'left',  sessionId);
         }
@@ -511,7 +544,7 @@ private class UserInteractionServiceTest {
         Test.startTest();
         Movie__c result;
         System.runAs(u) {
-            result = UserInteractionService.getNextSwipeMovie(sessionId);
+            result = UserInteractionService.getNextSwipeMovie(sessionId, null);
         }
         Test.stopTest();
 
@@ -533,7 +566,7 @@ private class UserInteractionServiceTest {
         Test.startTest();
         Movie__c result;
         System.runAs(u) {
-            result = UserInteractionService.getNextSwipeMovie(sessionId);
+            result = UserInteractionService.getNextSwipeMovie(sessionId, null);
         }
         Test.stopTest();
 

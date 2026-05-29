@@ -189,9 +189,13 @@ public with sharing class UserInteractionService {
      * TMDB_Popularity__c desc) into Swipe_Session__c.Movie_Queue__c so that
      * subsequent calls are cheap and the queue is stable for the session lifetime.
      * Returns null when the deck is exhausted.
+     *
+     * @param excludeMovieId  Optional. Caller passes the just-swiped movie Id so
+     *                        it is excluded even when the concurrent recordSwipe DML
+     *                        has not yet committed (race-condition guard).
      */
     @AuraEnabled(cacheable=false)
-    public static Movie__c getNextSwipeMovie(String sessionId) {
+    public static Movie__c getNextSwipeMovie(String sessionId, String excludeMovieId) {
         Swipe_Session__c session = [
             SELECT Id, Movie_Queue__c, Owner_User__c
             FROM   Swipe_Session__c
@@ -213,6 +217,12 @@ public with sharing class UserInteractionService {
             WITH USER_MODE
         ]) {
             swiped.add(rec.Movie__c);
+        }
+
+        // Also exclude the movie the caller just swiped — its recordSwipe DML
+        // may not have committed yet when this query runs (race-condition guard).
+        if (String.isNotBlank(excludeMovieId)) {
+            swiped.add(excludeMovieId);
         }
 
         Id nextMovieId;

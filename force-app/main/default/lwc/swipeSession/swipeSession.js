@@ -59,7 +59,7 @@ export default class SwipeSession extends LightningElement {
             this.sessionId = await startSwipeSession();
             if (!this._connected) return;
 
-            const first = await getNextSwipeMovie({ sessionId: this.sessionId });
+            const first = await getNextSwipeMovie({ sessionId: this.sessionId, excludeMovieId: null });
             if (!this._connected) return;
 
             if (first) {
@@ -77,12 +77,16 @@ export default class SwipeSession extends LightningElement {
     async handleSwiped(evt) {
         const { direction, movieId } = evt.detail;
 
-        // Fire-and-forget the write so next-card fetch runs in parallel
-        recordSwipe({ movieId, direction, sessionId: this.sessionId })
-            .catch(err => console.error('recordSwipe error', err));
-
         try {
-            const next = await getNextSwipeMovie({ sessionId: this.sessionId });
+            // Run recordSwipe and getNextSwipeMovie in parallel for responsiveness.
+            // Pass excludeMovieId so getNextSwipeMovie skips the just-swiped card
+            // even if the concurrent DML hasn't committed yet (race-condition guard —
+            // without this, getNextSwipeMovie could return the same card twice, leaving
+            // a permanently invisible swipeCard instance due to the unchanged for:each key).
+            const [, next] = await Promise.all([
+                recordSwipe({ movieId, direction, sessionId: this.sessionId }),
+                getNextSwipeMovie({ sessionId: this.sessionId, excludeMovieId: movieId })
+            ]);
             if (!this._connected) return;
 
             if (next) {
@@ -92,7 +96,7 @@ export default class SwipeSession extends LightningElement {
                 await this._closeSession();
             }
         } catch (err) {
-            console.error('getNextSwipeMovie error', err);
+            console.error('SwipeSession.handleSwiped error', err);
         }
     }
 

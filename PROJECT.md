@@ -23,11 +23,13 @@ The app aggregates movie availability across every streaming service the user su
 - Salesforce Mobile app support
 - Touch gesture support in LWC
 
-### Phase 3 — AI Recommendations (Agentforce)
-- Agentforce agent ranks movies based on user's interaction history
-- "If you liked X, you'd like Y" pre-computed recommendation graph
-- Natural language movie search ("show me 90s sci-fi on Netflix")
-- Preference inference after 20+ rated movies
+### Phase 3 — AI Recommendations (LLM via Named Credential)
+- Natural language movie search ("show me 90s sci-fi on Netflix") — slot-fill extraction prompt → structured SOQL/TMDB query
+- Ranked recommendations from user's like/swipe-right history via `TmdbApiService.getMovieRecommendations()`
+- Preference inference after 20+ ratings — persisted taste profile, refreshed per session
+- Match count surfaced in swipe session summary via `MatchDetectionService`
+
+> **Architecture decision (2026-05-26):** Using Named Credential + external LLM (Claude/OpenAI) rather than Agentforce. All three Phase 3 goals are single-shot inference calls — no multi-turn conversation needed. This keeps prompts, model selection, and response contracts fully under Apex control, mirrors the existing `TMDB_API` Named Credential pattern, and avoids Einstein AI licensing requirements on a DE org. Agentforce remains a forward-compatible option if the project moves to a licensed production org.
 
 ---
 
@@ -46,6 +48,17 @@ Salesforce is the **system of record for user data** (subscriptions, ratings, in
 **Why not JustWatch?** Unofficial, undocumented API with no stable contract. Any UI refactor on their end silently breaks Apex callouts with zero warning.
 
 **Why not individual streaming service APIs?** Netflix, Hulu, Disney+ do not have public OAuth APIs that allow third-party apps to query subscription catalogs. The user self-declares their subscriptions in `User_Subscription__c`; TMDB's Watch Providers data surfaces what's available on those services.
+
+### AI Strategy: LLM via Named Credential (Phase 3)
+Three single-shot inference functions, each with its own prompt contract, backed by a second Named Credential (`LLM_API`) pointing to Claude or OpenAI:
+
+| Function | Prompt pattern | Trigger |
+|---|---|---|
+| `parseNaturalLanguageQuery(query)` | Zero-shot slot-fill → JSON struct (year range, genres, platform) | User submits NL search — synchronous `@AuraEnabled` callout |
+| `rankMovieCandidates(profile, candidates)` | Preference profile + candidate list → ranked order | `handleSessionEnded()` in LWC fires a Queueable after `endSwipeSession()` DML commits |
+| `inferTasteProfile(interactionHistory)` | Aggregated genre/era signal → plain-text taste summary | Queueable, after swipe session crosses 20-interaction threshold |
+
+**Why not Agentforce?** None of the Phase 3 goals require multi-turn conversational state — Agentforce's core value proposition. Using `@InvocableMethod` also restricts callout flexibility and worsens debuggability versus `@AuraEnabled` + debug logs. The Named Credential pattern is already proven in this codebase via `TmdbApiService`. Agentforce remains viable for a future production org with Einstein licensing if a conversational UI is added; the Apex service layer will back it without changes.
 
 ### Deployment Scope
 Always deploy using the scoped manifest — never the full source directory (which includes standard org metadata with volatile ListViews):
@@ -129,10 +142,13 @@ All user ratings and future swipe decisions. One object handles both current and
 | Class | Purpose |
 |---|---|
 | `TmdbApiService` | All TMDB v3 callouts. Cached config via `TMDB_Config__mdt`. Named Credential `TMDB_API`. |
-| `MovieFinderController` | `@AuraEnabled` methods for LWC: browse movies, get/upsert subscriptions. |
+| `MovieFinderController` | `@AuraEnabled` methods for LWC: browse movies, get/upsert subscriptions, NL search, recommendations. |
 | `UserInteractionService` | Thumbs up/down (with mutual exclusivity), swipe session management, watchlist. |
 | `MovieAvailabilitySync` | Queueable that pages through TMDB `/discover/movie` for one provider, upserts `Movie__c` and `Movie_Availability__c`. Chains to next page automatically. |
 | `MovieAvailabilitySyncScheduler` | Scheduled Apex entry point. Fires nightly at 2am, enqueues one `MovieAvailabilitySync` per active streaming service. |
+| `AiRecommendationService` | *(Phase 3)* Three prompt functions: `parseNaturalLanguageQuery()`, `rankMovieCandidates()`, `inferTasteProfile()`. Owns the `LLM_API` Named Credential transport. |
+| `MovieRecommendationQueueable` | *(Phase 3)* Queueable fired from `handleSessionEnded()`. Calls `AiRecommendationService.rankMovieCandidates()` + `TmdbApiService.getMovieRecommendations()` after session DML commits. |
+| `MatchDetectionService` | *(Phase 3)* `without sharing` — cross-user swipe match detection within a session. Populates `matchCount` in `SwipeSessionSummaryDto`. |
 
 **Nightly sync schedule (to activate):**
 ```apex
@@ -274,13 +290,62 @@ Queueable jobs run in a separate execution context — Developer Console logs fr
 ### LWC — Integration
 
 - [x] Swipe tab added to `movieFinderApp` alongside Browse and My Services
-- [ ] Add MovieFinder to Salesforce Mobile Navigation (Setup → Salesforce Mobile App → Navigation → add MovieFinder tab)
-- [ ] Smoke-test swipe gestures on a real iOS/Android device via Salesforce Mobile app
+- [x] Add MovieFinder to Salesforce Mobile Navigation (Setup → Salesforce Mobile App → Navigation → add MovieFinder tab)
+- [x] Smoke-test swipe gestures on a real iOS/Android device via Salesforce Mobile app
 
 ### Deployment
 
 - [x] `package-moviepicker.xml` updated with `swipeCard`, `swipeSession`, `Swipe_Session__c` object and fields
 - [x] Deployed successfully — 67/67 components, 0 errors (2026-04-27)
+
+### Bug fixes (post-launch)
+
+- [x] **Swipe race condition** — `getNextSwipeMovie` added `excludeMovieId` param; `handleSwiped` switched to `Promise.all` so the just-swiped card is excluded even when `recordSwipe` DML is still in-flight (2026-05-26)
+- [x] **Tab nav error** — `MovieFinder_User` permission set tab visibility changed from `Available` → `Visible` (2026-05-26)
+- [x] **Test data ownership** — `User_Subscription__c` in `@TestSetup` wrapped in `System.runAs(testUser1)` so the record is owned by the querying user under Private OWD (2026-05-26)
+
+---
+
+## Phase 3 Punchlist — AI Recommendations
+
+> **Architecture decision:** Named Credential + external LLM (Claude/OpenAI) over Agentforce. All three goals are single-shot inference — no multi-turn conversation needed. Mirrors the existing `TMDB_API` Named Credential pattern. See *AI Strategy* in the Technical Architecture section above.
+
+### Architecture / Data Model
+
+- [ ] **`User_Taste_Profile__c` field or object** — stores the persisted plain-text taste summary generated by `AiRecommendationService.inferTasteProfile()`. Options: (a) `LongTextArea` field on the User object via a custom field, or (b) a lightweight `User_Preference__c` custom object with `User__c` lookup. Decide before building the Queueable so the write target is defined.
+- [ ] **`LLM_API` Named Credential** — Setup → Named Credentials → New. External credential pointing to the LLM provider endpoint (Claude: `https://api.anthropic.com`; OpenAI: `https://api.openai.com`). Auth header passed as a custom header using a stored API key. Same pattern as `TMDB_API`.
+- [ ] **Shared session model** (if pursuing match detection) — current `Swipe_Session__c` has one `Owner_User__c`. Cross-user matching requires either a `Session_Participant__c` child or an invite/join pattern. Decision gates `MatchDetectionService` implementation.
+- [ ] Add new objects/fields to `package-moviepicker.xml` and `MovieFinder_User` permission set.
+
+### Apex
+
+- [ ] **`AiRecommendationService.cls`** — owns the `LLM_API` Named Credential transport (mirrors `TmdbApiService` pattern). Three focused methods:
+  - `parseNaturalLanguageQuery(String query)` → `NlQueryDto` (yearStart, yearEnd, genres, platforms, keywords). Zero-shot slot-fill prompt with JSON output contract. Called synchronously.
+  - `rankMovieCandidates(String tasteProfile, List<Movie__c> candidates)` → `List<Id>` ordered by predicted fit. Prompt sends profile + candidate metadata (genre tags, year, rating); asks for ranked Id list.
+  - `inferTasteProfile(String userId)` → `String` plain-text summary. Aggregates genre frequency from `User_Movie_Interaction__c` (Thumbs_Up + Swipe_Right) in Apex first, then asks LLM to write a short taste summary from the structured signal — **not raw interaction records**.
+- [ ] **`MovieRecommendationQueueable.cls`** — fired from `handleSessionEnded()` after DML commits. Pulls user's liked TMDB IDs, calls `TmdbApiService.getMovieRecommendations()` for each, dedupes, filters to subscription catalog, calls `AiRecommendationService.rankMovieCandidates()`, stores/returns result.
+- [ ] **`MatchDetectionService` implementation** — cross-user Swipe_Right match detection scoped to a sessionId + movieId pair. Populates `matchCount` in `SwipeSessionSummaryDto`. Blocked on shared session data model decision.
+- [ ] **`MovieFinderController` additions** — two new `@AuraEnabled` methods: `searchMoviesNL(String query)` (parses via `AiRecommendationService`, queries catalog/TMDB) and `getPersonalizedRecommendations()` (returns pre-ranked candidate list for current user).
+- [ ] **`StaticResourceCalloutMock` for LLM endpoint** — build before writing more than one test that touches `AiRecommendationService`. Mock returns a canned JSON response matching the expected output contract for each method.
+- [ ] **Test coverage** — unit tests for all three `AiRecommendationService` methods (mocked), `MovieRecommendationQueueable` (mocked callout), `MatchDetectionService`, and both new `MovieFinderController` methods.
+
+### LWC — New Components
+
+- [ ] **`movieSearch`** — natural language search bar. Sends query to `MovieFinderController.searchMoviesNL()`, renders results as a `movieGrid`. Shows a spinner during the LLM + TMDB round-trip. Empty state: "Try something like '90s sci-fi on Netflix'."
+- [ ] **`movieRecommendations`** — "Because you liked…" section. Calls `MovieFinderController.getPersonalizedRecommendations()` on mount. Gated: renders only when user has 20+ interactions (query count on `connectedCallback`). Reuses `movieCard` + `interactionButtons`.
+
+### LWC — Integration
+
+- [ ] Add **Search** and **For You** tabs to `movieFinderApp` (alongside Browse, My Services, Swipe).
+- [ ] **`movieFinderApp.handleSessionEnded()`** — surface `matchCount > 0` as a toast/modal; dispatch `sessionId` context to `MovieRecommendationQueueable` via `@AuraEnabled` call.
+- [ ] Gate `movieRecommendations` tab visibility behind `has20Interactions` computed property checked on `connectedCallback`.
+
+### Deployment
+
+- [ ] Add `AiRecommendationService`, `MovieRecommendationQueueable`, and new LWC components to `package-moviepicker.xml`
+- [ ] Add new custom object/field (taste profile storage) to package and permission set
+- [ ] Configure `LLM_API` Named Credential in org (manual Setup step — API key never in source)
+- [ ] Document LLM API key setup in Deployment Checklist (mirrors TMDB API key pattern)
 
 ---
 

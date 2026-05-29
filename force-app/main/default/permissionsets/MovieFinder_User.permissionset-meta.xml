@@ -212,6 +212,6 @@
     </objectPermissions>
     <tabSettings>
         <tab>MovieFinder</tab>
-        <visibility>Available</visibility>
+        <visibility>Visible</visibility>
     </tabSettings>
 </PermissionSet>
