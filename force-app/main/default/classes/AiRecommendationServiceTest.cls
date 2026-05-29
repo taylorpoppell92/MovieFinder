@@ -78,7 +78,7 @@ private class AiRecommendationServiceTest {
         Movie__c m = new Movie__c(
             Name                = title,
             TMDB_Id__c          = String.valueOf(Math.abs(Crypto.getRandomInteger())),
-            Genre_Tags__c       = 'Sci-Fi,Thriller',
+            Genre_Tags__c       = '878,53',  // Sci-Fi=878, Thriller=53 (real TMDB IDs)
             Release_Year__c     = 2020,
             Aggregate_Rating__c = 8.0,
             Overview__c         = 'A test movie.'

@@ -40,7 +40,7 @@ private class MovieFinderControllerTest {
                 Poster_URL__c        = 'https://example.com/alpha.jpg',
                 Backdrop_URL__c      = 'https://example.com/alpha_bg.jpg',
                 Release_Year__c      = 2022,
-                Genre_Tags__c        = 'Action,Drama',
+                Genre_Tags__c        = '28,18',   // Action=28, Drama=18 (real TMDB IDs)
                 Runtime_Minutes__c   = 120,
                 Content_Rating__c    = 'PG-13',
                 Aggregate_Rating__c  = 7.5,
@@ -53,7 +53,7 @@ private class MovieFinderControllerTest {
                 Poster_URL__c        = 'https://example.com/beta.jpg',
                 Backdrop_URL__c      = 'https://example.com/beta_bg.jpg',
                 Release_Year__c      = 2021,
-                Genre_Tags__c        = 'Comedy',
+                Genre_Tags__c        = '35',      // Comedy=35 (real TMDB ID)
                 Runtime_Minutes__c   = 95,
                 Content_Rating__c    = 'PG',
                 Aggregate_Rating__c  = 6.8,
@@ -66,7 +66,7 @@ private class MovieFinderControllerTest {
                 Poster_URL__c        = 'https://example.com/gamma.jpg',
                 Backdrop_URL__c      = 'https://example.com/gamma_bg.jpg',
                 Release_Year__c      = 2020,
-                Genre_Tags__c        = 'Thriller',
+                Genre_Tags__c        = '53',      // Thriller=53 (real TMDB ID)
                 Runtime_Minutes__c   = 110,
                 Content_Rating__c    = 'R',
                 Aggregate_Rating__c  = 8.1,
@@ -156,7 +156,7 @@ private class MovieFinderControllerTest {
         MovieFinderController.MovieDto first = results[0];
         Assert.areEqual('tmdb_1',        first.tmdbId,         'TMDB Id mismatch');
         Assert.areEqual(2022,            first.releaseYear,    'Release year mismatch');
-        Assert.areEqual('Action,Drama',  first.genreTags,      'Genre tags mismatch');
+        Assert.areEqual('28,18',         first.genreTags,      'Genre tags mismatch (Action=28, Drama=18)');
         Assert.areEqual(120,             first.runtimeMinutes, 'Runtime mismatch');
         Assert.areEqual('PG-13',         first.contentRating,  'Content rating mismatch');
         Assert.isNotNull(first.availableOnServiceIds,          'availableOnServiceIds should not be null');

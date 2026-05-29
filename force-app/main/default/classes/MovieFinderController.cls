@@ -448,9 +448,31 @@ public with sharing class MovieFinderController {
     }
 
     /**
+     * TMDB genre name (lowercase) → numeric genre ID.
+     * Genre_Tags__c stores comma-separated TMDB genre IDs (e.g. "28,18,53"),
+     * so we translate LLM-returned names to IDs before building LIKE conditions.
+     */
+    private static final Map<String, String> GENRE_NAME_TO_ID = new Map<String, String>{
+        'action'           => '28',   'adventure'        => '12',
+        'animation'        => '16',   'comedy'           => '35',
+        'crime'            => '80',   'documentary'      => '99',
+        'drama'            => '18',   'family'           => '10751',
+        'fantasy'          => '14',   'history'          => '36',
+        'horror'           => '27',   'music'            => '10402',
+        'mystery'          => '9648', 'romance'          => '10749',
+        'sci-fi'           => '878',  'science fiction'  => '878',
+        'science-fiction'  => '878',  'thriller'         => '53',
+        'war'              => '10752','western'          => '37',
+        'tv movie'         => '10770'
+    };
+
+    /**
      * Translates an NlQueryDto into a list of safe SOQL condition strings
      * suitable for appending to a dynamic WHERE clause.
-     * Uses String.escapeSingleQuotes on all string values.
+     *
+     * Genres are mapped from human-readable names to TMDB numeric IDs
+     * (e.g. "action" → "28") so they match Genre_Tags__c values in the database.
+     * Falls back to a literal LIKE match for any genre not in the map.
      */
     private static List<String> buildNlConditions(AiRecommendationService.NlQueryDto filters) {
         List<String> conditions = new List<String>();
@@ -460,10 +482,11 @@ public with sharing class MovieFinderController {
             List<String> genreConds = new List<String>();
             for (String genre : filters.genres) {
                 if (String.isNotBlank(genre)) {
-                    genreConds.add(
-                        'Genre_Tags__c LIKE \'%' +
-                        String.escapeSingleQuotes(genre.trim()) + '%\''
-                    );
+                    String normalized = genre.trim().toLowerCase();
+                    String searchTerm = GENRE_NAME_TO_ID.containsKey(normalized)
+                        ? GENRE_NAME_TO_ID.get(normalized)
+                        : String.escapeSingleQuotes(genre.trim());
+                    genreConds.add('Genre_Tags__c LIKE \'%' + searchTerm + '%\'');
                 }
             }
             if (!genreConds.isEmpty()) {
