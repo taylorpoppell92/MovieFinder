@@ -1,0 +1,74 @@
+.rec-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+}
+
+.loading-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    gap: 16px;
+}
+
+.loading-label {
+    color: var(--lwc-colorTextWeak, #706e6b);
+    font-size: 0.875rem;
+}
+
+.rec-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 4px;
+}
+
+.rec-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--lwc-colorTextDefault, #080707);
+    margin: 0;
+    flex: 1;
+}
+
+.empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    text-align: center;
+    gap: 12px;
+}
+
+.empty-icon {
+    --lwc-colorTextIconDefault: var(--lwc-colorTextWeak, #706e6b);
+}
+
+.empty-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--lwc-colorTextDefault, #080707);
+    margin: 0;
+}
+
+.empty-sub {
+    color: var(--lwc-colorTextWeak, #706e6b);
+    font-size: 0.875rem;
+    max-width: 320px;
+    margin: 0;
+}
+
+.progress-bar {
+    width: 200px;
+}
+
+.progress-label {
+    font-size: 0.75rem;
+    color: var(--lwc-colorTextWeak, #706e6b);
+    margin: 0;
+}

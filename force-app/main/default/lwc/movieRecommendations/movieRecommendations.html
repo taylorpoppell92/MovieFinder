@@ -1,0 +1,49 @@
+<template>
+    <div class="rec-container">
+        <template if:true={isLoading}>
+            <div class="loading-container">
+                <lightning-spinner alternative-text="Loading recommendations…" size="medium"></lightning-spinner>
+                <p class="loading-label">Personalizing your recommendations…</p>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <!-- Enough interactions: show AI-ranked grid -->
+            <template if:true={hasRecommendations}>
+                <div class="rec-header">
+                    <h2 class="rec-title">For You</h2>
+                    <lightning-button-icon
+                        icon-name        = "utility:refresh"
+                        alternative-text = "Refresh recommendations"
+                        title            = "Refresh"
+                        onclick          = {handleRefresh}
+                        size             = "small"
+                        class            = "refresh-btn"
+                    ></lightning-button-icon>
+                </div>
+                <c-movie-grid
+                    movies                = {movies}
+                    oninteractionrecorded = {handleInteractionRecorded}
+                ></c-movie-grid>
+            </template>
+
+            <!-- Not enough interactions yet -->
+            <template if:true={showGatePlaceholder}>
+                <div class="empty-state">
+                    <lightning-icon icon-name="utility:sparkles" size="large" class="empty-icon"></lightning-icon>
+                    <p class="empty-title">Keep swiping to unlock your picks</p>
+                    <p class="empty-sub">
+                        Rate {remaining} more {moviesWord} and we'll build a personalized
+                        For You feed powered by AI.
+                    </p>
+                    <lightning-progress-bar
+                        value  = {progressPct}
+                        size   = "medium"
+                        class  = "progress-bar"
+                    ></lightning-progress-bar>
+                    <p class="progress-label">{interactionCount} / 20</p>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

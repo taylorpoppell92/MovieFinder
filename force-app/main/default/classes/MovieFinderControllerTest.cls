@@ -413,4 +413,153 @@ private class MovieFinderControllerTest {
 
         Assert.isTrue(exceptionThrown, 'A blank streamingServiceId should throw AuraHandledException');
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Mock LLM callout helper (shared by AI method tests)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private class MockLlmCallout implements HttpCalloutMock {
+        private final Integer statusCode;
+        private final String  body;
+        public MockLlmCallout(Integer statusCode, String body) {
+            this.statusCode = statusCode;
+            this.body       = body;
+        }
+        public HttpResponse respond(HttpRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(statusCode);
+            res.setBody(body);
+            res.setHeader('Content-Type', 'application/json');
+            return res;
+        }
+    }
+
+    private static String llmResponse(String text) {
+        return JSON.serialize(new Map<String, Object>{
+            'content' => new List<Object>{
+                new Map<String, Object>{ 'type' => 'text', 'text' => text }
+            }
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // searchMoviesNL — no subscription short-circuits before LLM call
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @IsTest
+    static void searchMoviesNL_noSubscriptionReturnsEmpty() {
+        Profile p = [SELECT Id FROM Profile WHERE Name = 'Standard User' LIMIT 1];
+        User noSubUser = new User(
+            FirstName = 'NoSub', LastName = 'User',
+            Email = 'nosub@movfinder.test',
+            Username = 'nosub.' + System.currentTimeMillis() + '@movfinder.test',
+            Alias = 'nosub', TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US', EmailEncodingKey = 'UTF-8',
+            LanguageLocaleKey = 'en_US', ProfileId = p.Id
+        );
+        insert noSubUser;
+
+        // No mock set up — proves the LLM is never called when there are no movies
+        Test.startTest();
+        List<MovieFinderController.MovieDto> results;
+        System.runAs(noSubUser) {
+            results = MovieFinderController.searchMoviesNL('action movies');
+        }
+        Test.stopTest();
+
+        Assert.areEqual(0, results.size(),
+            'User with no subscriptions should get empty NL search results');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // searchMoviesNL — LLM genre + year filter applied to available movies
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @IsTest
+    static void searchMoviesNL_withFiltersReturnsMatchingMovies() {
+        User testUser = getTestUser();
+        AiRecommendationService.testConfig = new LLM_Config__mdt(API_Key__c = 'test-key');
+
+        // LLM extracts Action genre + minYear 2020 → matches Movie Alpha (Action,Drama 2022)
+        Test.setMock(HttpCalloutMock.class,
+            new MockLlmCallout(200, llmResponse('{"genres":["Action"],"minYear":2020}')));
+
+        Test.startTest();
+        List<MovieFinderController.MovieDto> results;
+        System.runAs(testUser) {
+            results = MovieFinderController.searchMoviesNL('action movies from the 2020s');
+        }
+        Test.stopTest();
+
+        Assert.isTrue(results.size() >= 1, 'At least Movie Alpha should match Action + minYear 2020');
+        Boolean foundAlpha = false;
+        for (MovieFinderController.MovieDto dto : results) {
+            if (dto.title == 'Movie Alpha') {
+                foundAlpha = true;
+            }
+        }
+        Assert.isTrue(foundAlpha, 'Movie Alpha (Action, 2022) should appear in filtered results');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // getPersonalizedRecommendations — below gate (< 20 interactions) → empty
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @IsTest
+    static void getPersonalizedRecommendations_belowGateReturnsEmpty() {
+        User testUser = getTestUser();
+        // @TestSetup creates no interactions, so count = 0 < gate of 20
+
+        // No mock set up — proves the LLM is never called before the gate check
+        Test.startTest();
+        List<MovieFinderController.MovieDto> results;
+        System.runAs(testUser) {
+            results = MovieFinderController.getPersonalizedRecommendations();
+        }
+        Test.stopTest();
+
+        Assert.areEqual(0, results.size(),
+            'User with < 20 interactions should receive an empty recommendations list');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // getPersonalizedRecommendations — 20+ interactions → AI-ranked results
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @IsTest
+    static void getPersonalizedRecommendations_sufficientInteractionsReturnsMovies() {
+        User testUser = getTestUser();
+        List<Movie__c> movies = [SELECT Id FROM Movie__c ORDER BY TMDB_Popularity__c DESC];
+
+        // Insert 20 swipe interactions cycling across the 3 test movies
+        List<User_Movie_Interaction__c> interactions = new List<User_Movie_Interaction__c>();
+        List<String> types = new List<String>{ 'Swipe_Right', 'Swipe_Left' };
+        for (Integer i = 0; i < 20; i++) {
+            interactions.add(new User_Movie_Interaction__c(
+                User__c                 = testUser.Id,
+                Movie__c                = movies[Math.mod(i, movies.size())].Id,
+                Interaction_Type__c     = types[Math.mod(i, 2)],
+                Interaction_DateTime__c = Datetime.now().addMinutes(-i)
+            ));
+        }
+        System.runAs(testUser) { insert interactions; }
+
+        AiRecommendationService.testConfig = new LLM_Config__mdt(API_Key__c = 'test-key');
+
+        // LLM returns empty ranked list → triggers fallback to popularity order
+        Test.setMock(HttpCalloutMock.class,
+            new MockLlmCallout(200, llmResponse('[]')));
+
+        Test.startTest();
+        List<MovieFinderController.MovieDto> results;
+        System.runAs(testUser) {
+            results = MovieFinderController.getPersonalizedRecommendations();
+        }
+        Test.stopTest();
+
+        Assert.isTrue(results.size() > 0,
+            'Should return at least 1 movie when user has 20+ interactions');
+        Assert.isTrue(results.size() <= 20,
+            'Recommendations should be capped at 20');
+    }
 }

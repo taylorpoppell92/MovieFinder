@@ -86,6 +86,8 @@
         <members>movieFilterBar</members>
         <members>movieFinderApp</members>
         <members>movieGrid</members>
+        <members>movieRecommendations</members>
+        <members>movieSearch</members>
         <members>subscriptionManager</members>
         <members>swipeCard</members>
         <members>swipeSession</members>

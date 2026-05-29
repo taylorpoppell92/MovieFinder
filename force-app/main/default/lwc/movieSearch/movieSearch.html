@@ -1,0 +1,55 @@
+<template>
+    <div class="search-container">
+        <div class="search-bar">
+            <lightning-input
+                type        = "search"
+                label       = "Search movies"
+                placeholder = "e.g. a tense sci-fi thriller from the 90s with a twist ending"
+                value       = {query}
+                onchange    = {handleQueryChange}
+                onkeyup     = {handleKeyUp}
+                class       = "search-input"
+            ></lightning-input>
+            <lightning-button
+                label    = "Search"
+                variant  = "brand"
+                onclick  = {handleSearch}
+                disabled = {isSearchDisabled}
+                class    = "search-button"
+            ></lightning-button>
+        </div>
+
+        <template if:true={isLoading}>
+            <div class="loading-container">
+                <lightning-spinner alternative-text="Searching…" size="medium"></lightning-spinner>
+                <p class="loading-label">Finding movies that match…</p>
+            </div>
+        </template>
+
+        <template if:false={isLoading}>
+            <template if:true={hasResults}>
+                <p class="result-count">{resultLabel}</p>
+                <c-movie-grid
+                    movies              = {movies}
+                    oninteractionrecorded = {handleInteractionRecorded}
+                ></c-movie-grid>
+            </template>
+
+            <template if:true={showNoResults}>
+                <div class="empty-state">
+                    <lightning-icon icon-name="utility:search" size="large" class="empty-icon"></lightning-icon>
+                    <p class="empty-title">No matches found</p>
+                    <p class="empty-sub">Try rephrasing — "80s action movies" or "feel-good comedies with high ratings"</p>
+                </div>
+            </template>
+
+            <template if:true={showPrompt}>
+                <div class="empty-state">
+                    <lightning-icon icon-name="utility:sparkles" size="large" class="empty-icon"></lightning-icon>
+                    <p class="empty-title">Describe what you want to watch</p>
+                    <p class="empty-sub">Type anything — a mood, genre, era, or vibe — and AI will find it.</p>
+                </div>
+            </template>
+        </template>
+    </div>
+</template>

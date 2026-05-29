@@ -277,6 +277,264 @@ public with sharing class MovieFinderController {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // AI METHODS (Phase 3)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Parses a natural language movie query via LLM and returns up to 20
+     * matching movies available on the user's active subscriptions.
+     *
+     * The LLM extracts structured filters (genres, year range, rating,
+     * keywords) from the free-text query. A blank query falls back to top
+     * movies by popularity (no filters applied).
+     *
+     * Note: makes one LLM callout — cannot be @AuraEnabled(cacheable=true).
+     */
+    @AuraEnabled(cacheable=false)
+    public static List<MovieDto> searchMoviesNL(String query) {
+        try {
+            Set<Id> eligibleMovieIds = getEligibleMovieIds();
+            if (eligibleMovieIds.isEmpty()) {
+                return new List<MovieDto>();
+            }
+
+            AiRecommendationService.NlQueryDto filters =
+                AiRecommendationService.parseNaturalLanguageQuery(query);
+
+            List<String> conditions = buildNlConditions(filters);
+            String additionalWhere  = conditions.isEmpty()
+                ? ''
+                : ' AND ' + String.join(conditions, ' AND ');
+
+            String soql =
+                'SELECT Id, Name, TMDB_Id__c, Poster_URL__c, Backdrop_URL__c, ' +
+                'Release_Year__c, Genre_Tags__c, Runtime_Minutes__c, Content_Rating__c, ' +
+                'Aggregate_Rating__c, Overview__c, TMDB_Popularity__c ' +
+                'FROM Movie__c ' +
+                'WHERE Id IN :eligibleMovieIds' + additionalWhere + ' ' +
+                'ORDER BY TMDB_Popularity__c DESC NULLS LAST LIMIT 20';
+
+            List<Movie__c> movies = Database.query(soql);
+            return buildMovieDtos(movies);
+
+        } catch (AuraHandledException ahe) {
+            throw ahe;
+        } catch (Exception e) {
+            throw new AuraHandledException('searchMoviesNL failed: ' + e.getMessage());
+        }
+    }
+
+    /**
+     * Returns up to 20 AI-ranked personalized movie recommendations for the
+     * current user.  Returns an empty list if the user has fewer than 20
+     * interactions — not enough signal for meaningful recommendations.
+     *
+     * Flow:
+     *   1. Gate: require 20+ swipe/thumb interactions.
+     *   2. Read taste profile from User_Preference__c.
+     *   3. Pull top-50 available movies as candidates.
+     *   4. Call AiRecommendationService.rankMovieCandidates (one LLM callout).
+     *   5. Return movies in LLM-ranked order, capped at 20.
+     */
+    @AuraEnabled(cacheable=false)
+    public static List<MovieDto> getPersonalizedRecommendations() {
+        try {
+            Id userId = UserInfo.getUserId();
+
+            // Gate: at least 20 swipe/thumb interactions needed for signal
+            Integer interactionCount = [
+                SELECT COUNT()
+                FROM   User_Movie_Interaction__c
+                WHERE  User__c             = :userId
+                AND    Interaction_Type__c IN ('Swipe_Right','Swipe_Left','Thumbs_Up','Thumbs_Down')
+            ];
+            if (interactionCount < 20) {
+                return new List<MovieDto>();
+            }
+
+            // Read taste profile (may be blank if Queueable hasn't run yet)
+            String tasteProfileJson = '';
+            List<User_Preference__c> prefs = [
+                SELECT Taste_Profile__c
+                FROM   User_Preference__c
+                WHERE  User__c = :userId
+                LIMIT  1
+            ];
+            if (!prefs.isEmpty() && String.isNotBlank(prefs[0].Taste_Profile__c)) {
+                tasteProfileJson = prefs[0].Taste_Profile__c;
+            }
+
+            Set<Id> eligibleMovieIds = getEligibleMovieIds();
+            if (eligibleMovieIds.isEmpty()) {
+                return new List<MovieDto>();
+            }
+
+            // Top-50 available movies as ranking candidates
+            List<Movie__c> candidates = [
+                SELECT Id, Name, TMDB_Id__c, Poster_URL__c, Backdrop_URL__c,
+                       Release_Year__c, Genre_Tags__c, Runtime_Minutes__c,
+                       Content_Rating__c, Aggregate_Rating__c, Overview__c,
+                       TMDB_Popularity__c
+                FROM   Movie__c
+                WHERE  Id IN :eligibleMovieIds
+                ORDER BY TMDB_Popularity__c DESC NULLS LAST
+                LIMIT  50
+            ];
+
+            // LLM ranks candidates; gracefully falls back to original order
+            List<Id> rankedIds = AiRecommendationService.rankMovieCandidates(
+                candidates, tasteProfileJson
+            );
+
+            Map<Id, Movie__c> movieMap    = new Map<Id, Movie__c>(candidates);
+            Set<Id>           includedIds = new Set<Id>();
+            List<Movie__c>    ranked      = new List<Movie__c>();
+
+            for (Id movieId : rankedIds) {
+                if (movieMap.containsKey(movieId) && ranked.size() < 20) {
+                    ranked.add(movieMap.get(movieId));
+                    includedIds.add(movieId);
+                }
+            }
+            // Pad with remaining candidates if LLM returned fewer than 20 IDs
+            for (Movie__c m : candidates) {
+                if (!includedIds.contains(m.Id) && ranked.size() < 20) {
+                    ranked.add(m);
+                }
+            }
+
+            return buildMovieDtos(ranked);
+
+        } catch (AuraHandledException ahe) {
+            throw ahe;
+        } catch (Exception e) {
+            throw new AuraHandledException(
+                'getPersonalizedRecommendations failed: ' + e.getMessage()
+            );
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Private helpers shared by AI + browse methods
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns the set of Movie__c IDs available via the user's active
+     * subscriptions (Subscription availability type only).
+     */
+    private static Set<Id> getEligibleMovieIds() {
+        Id userId = UserInfo.getUserId();
+
+        Set<Id> serviceIds = new Set<Id>();
+        for (User_Subscription__c sub : [
+            SELECT Streaming_Service__c
+            FROM   User_Subscription__c
+            WHERE  User__c = :userId AND Is_Active__c = true
+        ]) {
+            serviceIds.add(sub.Streaming_Service__c);
+        }
+        if (serviceIds.isEmpty()) return new Set<Id>();
+
+        Set<Id> movieIds = new Set<Id>();
+        for (Movie_Availability__c ma : [
+            SELECT Movie__c
+            FROM   Movie_Availability__c
+            WHERE  Streaming_Service__c IN :serviceIds
+            AND    Availability_Type__c  = 'Subscription'
+        ]) {
+            movieIds.add(ma.Movie__c);
+        }
+        return movieIds;
+    }
+
+    /**
+     * Translates an NlQueryDto into a list of safe SOQL condition strings
+     * suitable for appending to a dynamic WHERE clause.
+     * Uses String.escapeSingleQuotes on all string values.
+     */
+    private static List<String> buildNlConditions(AiRecommendationService.NlQueryDto filters) {
+        List<String> conditions = new List<String>();
+        if (filters == null) return conditions;
+
+        if (filters.genres != null && !filters.genres.isEmpty()) {
+            List<String> genreConds = new List<String>();
+            for (String genre : filters.genres) {
+                if (String.isNotBlank(genre)) {
+                    genreConds.add(
+                        'Genre_Tags__c LIKE \'%' +
+                        String.escapeSingleQuotes(genre.trim()) + '%\''
+                    );
+                }
+            }
+            if (!genreConds.isEmpty()) {
+                conditions.add('(' + String.join(genreConds, ' OR ') + ')');
+            }
+        }
+        if (filters.minYear   != null) conditions.add('Release_Year__c >= '     + filters.minYear);
+        if (filters.maxYear   != null) conditions.add('Release_Year__c <= '     + filters.maxYear);
+        if (filters.minRating != null) conditions.add('Aggregate_Rating__c >= ' + filters.minRating);
+
+        if (filters.keywords != null && !filters.keywords.isEmpty()) {
+            List<String> kwConds = new List<String>();
+            for (String kw : filters.keywords) {
+                if (String.isNotBlank(kw)) {
+                    String safeKw = String.escapeSingleQuotes(kw.trim());
+                    kwConds.add('Name LIKE \'%'      + safeKw + '%\'');
+                    kwConds.add('Overview__c LIKE \'%' + safeKw + '%\'');
+                }
+            }
+            if (!kwConds.isEmpty()) {
+                conditions.add('(' + String.join(kwConds, ' OR ') + ')');
+            }
+        }
+        return conditions;
+    }
+
+    /**
+     * Builds MovieDto list from Movie__c records, attaching the most-recent
+     * interaction per movie for the current user.
+     */
+    private static List<MovieDto> buildMovieDtos(List<Movie__c> movies) {
+        if (movies == null || movies.isEmpty()) return new List<MovieDto>();
+
+        Id userId = UserInfo.getUserId();
+        Set<Id> movieIdSet = new Map<Id, Movie__c>(movies).keySet();
+
+        Map<Id, String> movieToInteraction = new Map<Id, String>();
+        for (User_Movie_Interaction__c umi : [
+            SELECT Movie__c, Interaction_Type__c
+            FROM   User_Movie_Interaction__c
+            WHERE  User__c  = :userId
+            AND    Movie__c IN :movieIdSet
+            ORDER BY Interaction_DateTime__c DESC
+        ]) {
+            if (!movieToInteraction.containsKey(umi.Movie__c)) {
+                movieToInteraction.put(umi.Movie__c, umi.Interaction_Type__c);
+            }
+        }
+
+        List<MovieDto> results = new List<MovieDto>();
+        for (Movie__c m : movies) {
+            MovieDto dto         = new MovieDto();
+            dto.movieId          = m.Id;
+            dto.tmdbId           = m.TMDB_Id__c;
+            dto.title            = m.Name;
+            dto.posterUrl        = m.Poster_URL__c;
+            dto.backdropUrl      = m.Backdrop_URL__c;
+            dto.releaseYear      = m.Release_Year__c   != null ? Integer.valueOf(m.Release_Year__c)   : null;
+            dto.genreTags        = m.Genre_Tags__c;
+            dto.runtimeMinutes   = m.Runtime_Minutes__c != null ? Integer.valueOf(m.Runtime_Minutes__c) : null;
+            dto.contentRating    = m.Content_Rating__c;
+            dto.aggregateRating  = m.Aggregate_Rating__c;
+            dto.overview         = m.Overview__c;
+            dto.existingInteraction   = movieToInteraction.get(m.Id);
+            dto.availableOnServiceIds = new List<String>();
+            results.add(dto);
+        }
+        return results;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // WRITE METHODS
     // ─────────────────────────────────────────────────────────────────────────
 
